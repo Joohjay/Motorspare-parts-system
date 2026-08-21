@@ -1,0 +1,1040 @@
+// MAKIRE MOTORPARTS — Stage 2 database schema
+//
+// Motorcycle spare parts management and sales system.
+// One physical location, two roles (ADMIN / ASSISTANT), no branches.
+//
+// Conventions:
+// - IDs are cuid() strings.
+// - Money is always Decimal (PostgreSQL numeric). Never floats.
+// - Historical values are frozen at record time (SaleItem.unitPrice,
+//   PurchaseItem.unitCost, return items) — later price/cost changes never
+//   alter historical transactions.
+// - Historical records are never physically deleted; business records are
+//   soft-deactivated (ACTIVE/INACTIVE/ARCHIVED patterns) and references to
+//   them are RESTRICTed so transactions stay readable.
+// - Inventory is ledger-oriented: Inventory holds current on-hand/reserved
+//   totals; every change is recorded in InventoryTransaction.
+// - No role/permission tables: authorization is explicit at the service/API
+//   layer using the User.role enum (ADMIN | ASSISTANT).
+// - No branch tables: exactly one physical location.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================================================================
+// Enums
+// ===========================================================================
+
+enum UserRole {
+  ADMIN
+  ASSISTANT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CategoryStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BrandStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MotorcycleMakeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MotorcycleModelStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MotorcycleVariantStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum IdentifierType {
+  PART_NUMBER
+  OEM_NUMBER
+  ALTERNATIVE_NUMBER
+  SUPPLIER_NUMBER
+  OTHER
+}
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum SupplierProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// Practical business classification for reporting and default pricing hints.
+enum CustomerType {
+  RETAIL
+  WHOLESALE
+  MECHANIC
+  GARAGE
+  BUSINESS
+  OTHER
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum PurchaseStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum PurchasePaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum PurchaseReturnStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum SaleStatus {
+  COMPLETED
+  VOID
+}
+
+enum SaleType {
+  RETAIL
+  WHOLESALE
+}
+
+enum SaleReturnStatus {
+  PENDING
+  COMPLETED
+}
+
+// Physical condition of returned goods. Only GOOD stock returns to sellable
+// inventory; DAMAGED/DEFECTIVE units are recorded but never restocked.
+enum ReturnCondition {
+  GOOD
+  DAMAGED
+  DEFECTIVE
+  WRONG_ITEM
+  OTHER
+}
+
+enum ExpenseStatus {
+  ACTIVE
+  VOIDED
+}
+
+enum PaymentMethod {
+  CASH
+  MPESA
+  AIRTEL_MONEY
+  BANK
+  OTHER
+  // Sale settled against the customer's credit account. Only valid on
+  // Sale.payments; represents the portion of a sale the customer owes.
+  CREDIT
+}
+
+enum InventoryTransactionType {
+  INITIAL
+  PURCHASE
+  SALE
+  SALE_RETURN
+  PURCHASE_RETURN
+  ADJUSTMENT
+  DAMAGE
+  LOSS
+  RESERVATION
+  RESERVATION_RELEASE
+}
+
+enum ReservationStatus {
+  ACTIVE
+  FULFILLED
+  CANCELLED
+  EXPIRED
+}
+
+enum CreditAccountStatus {
+  ACTIVE
+  ON_HOLD
+  CLOSED
+}
+
+enum NotificationType {
+  GENERAL
+  LOW_STOCK
+  OUT_OF_STOCK
+  CUSTOMER_CREDIT_DUE
+  SUPPLIER_PAYMENT_DUE
+  PURCHASE_ORDER_PENDING
+  RESERVATION_PENDING
+}
+
+enum DocumentType {
+  SALE
+  PURCHASE_ORDER
+  PURCHASE
+  SALE_RETURN
+  PURCHASE_RETURN
+}
+
+enum SettingDataType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}
+
+// ===========================================================================
+// System
+// ===========================================================================
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  fullName     String
+  passwordHash String
+  role         UserRole   @default(ADMIN)
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdById  String?
+  createdBy    User?      @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  createdUsers           User[]                  @relation("UserCreatedBy")
+  auditLogs              AuditLog[]              @relation("AuditLogUser")
+  notifications          Notification[]          @relation("NotificationUser")
+  purchaseOrders         PurchaseOrder[]         @relation("PurchaseOrderCreatedBy")
+  purchases              Purchase[]              @relation("PurchaseCreatedBy")
+  purchaseReturns        PurchaseReturn[]        @relation("PurchaseReturnCreatedBy")
+  sales                  Sale[]                  @relation("SaleCreatedBy")
+  saleReturns            SaleReturn[]            @relation("SaleReturnCreatedBy")
+  payments               Payment[]               @relation("PaymentCreatedBy")
+  customerCreditPayments CustomerCreditPayment[] @relation("CustomerCreditPaymentCreatedBy")
+  supplierCreditPayments SupplierCreditPayment[] @relation("SupplierCreditPaymentCreatedBy")
+  expenses               Expense[]               @relation("ExpenseCreatedBy")
+  inventoryTransactions  InventoryTransaction[]  @relation("InventoryTransactionCreatedBy")
+  reservations           StockReservation[]      @relation("ReservationCreatedBy")
+  passwordResetTokens    PasswordResetToken[]    @relation("UserPasswordResetTokens")
+
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+// One-time password reset tokens. Only the SHA-256 hash of the raw token is
+// stored; the raw token is handed to the user once (e.g. in a reset link) and
+// is never persisted or logged. Tokens are single-use and expire.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation("UserPasswordResetTokens", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tokenHash String    @unique // sha256 hex of the raw token
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  action      String // e.g. "product.update", "sale.create", "user.login"
+  entityType  String // e.g. "product", "sale", "purchase"
+  entityId    String // the affected record id
+  beforeState Json?
+  afterState  Json?
+  requestId   String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation("NotificationUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  type      NotificationType @default(GENERAL)
+  title     String
+  message   String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+  @@index([type])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model Setting {
+  id          String          @id @default(cuid())
+  key         String          @unique
+  value       String
+  dataType    SettingDataType @default(STRING)
+  description String?
+  updatedAt   DateTime        @updatedAt
+
+  @@map("settings")
+}
+
+// Concurrency-safe sequential document numbering. Services issue the next
+// number inside a transaction with an atomic increment:
+//   UPDATE "document_sequences" SET "lastNumber" = "lastNumber" + 1
+//   WHERE "documentType" = ? RETURNING "lastNumber"
+// PostgreSQL row locking makes this safe under concurrent writers. Never rely
+// on application-side counting.
+model DocumentSequence {
+  id           String       @id @default(cuid())
+  documentType DocumentType @unique
+  prefix       String // e.g. "SALE", "PO", "PURCHASE"
+  lastNumber   Int          @default(0)
+  padLength    Int          @default(6)
+  updatedAt    DateTime     @updatedAt
+
+  @@map("document_sequences")
+}
+
+// ===========================================================================
+// Product catalog
+// ===========================================================================
+
+model Category {
+  id          String         @id @default(cuid())
+  name        String
+  slug        String         @unique
+  parentId    String?
+  parent      Category?      @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  children    Category[]     @relation("CategoryHierarchy")
+  description String?
+  status      CategoryStatus @default(ACTIVE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  products Product[]
+
+  @@unique([parentId, name]) // child category names are unique within their parent
+  @@index([slug])
+  @@index([status])
+  @@map("categories")
+}
+
+model Brand {
+  id        String      @id @default(cuid())
+  name      String      @unique
+  status    BrandStatus @default(ACTIVE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  products Product[]
+
+  @@index([status])
+  @@map("brands")
+}
+
+model Product {
+  id             String        @id @default(cuid())
+  sku            String        @unique // internal SKU
+  name           String
+  description    String?
+  categoryId     String
+  category       Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  brandId        String? // branded or unbranded
+  brand          Brand?        @relation(fields: [brandId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  retailPrice    Decimal       @default(0) @db.Decimal(12, 2)
+  wholesalePrice Decimal       @default(0) @db.Decimal(12, 2)
+  minimumStock   Int           @default(0)
+  reorderLevel   Int           @default(0)
+  status         ProductStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  identifiers           ProductIdentifier[]    @relation("ProductIdentifiers")
+  supplierProducts      SupplierProduct[]      @relation("SupplierProductProduct")
+  purchaseOrderItems    PurchaseOrderItem[]    @relation("PurchaseOrderItemProduct")
+  purchaseItems         PurchaseItem[]         @relation("PurchaseItemProduct")
+  purchaseReturnItems   PurchaseReturnItem[]   @relation("PurchaseReturnItemProduct")
+  saleItems             SaleItem[]             @relation("SaleItemProduct")
+  saleReturnItems       SaleReturnItem[]       @relation("SaleReturnItemProduct")
+  inventory             Inventory?
+  inventoryTransactions InventoryTransaction[] @relation("InventoryTransactionProduct")
+  compatibilities       ProductCompatibility[] @relation("ProductCompatibilityProduct")
+  reservations          StockReservation[]     @relation("StockReservationProduct")
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([status])
+  @@index([name])
+  @@map("products")
+}
+
+// Multiple identifiers per product for efficient lookup by any known number.
+// SUPPLIER_NUMBER is a canonical supplier-facing identifier; per-supplier
+// purchasing references live in SupplierProduct.supplierPartNumber.
+model ProductIdentifier {
+  id        String         @id @default(cuid())
+  productId String
+  product   Product        @relation("ProductIdentifiers", fields: [productId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  type      IdentifierType
+  value     String
+  createdAt DateTime       @default(now())
+
+  @@unique([type, value])
+  @@index([productId])
+  @@index([value]) // fast lookup by any identifier value
+  @@map("product_identifiers")
+}
+
+// ===========================================================================
+// Motorcycle compatibility
+// ===========================================================================
+
+model MotorcycleMake {
+  id        String               @id @default(cuid())
+  name      String               @unique
+  status    MotorcycleMakeStatus @default(ACTIVE)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  models MotorcycleModel[]
+
+  @@index([status])
+  @@map("motorcycle_makes")
+}
+
+model MotorcycleModel {
+  id        String                @id @default(cuid())
+  makeId    String
+  make      MotorcycleMake        @relation(fields: [makeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  name      String
+  status    MotorcycleModelStatus @default(ACTIVE)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  variants MotorcycleVariant[]
+
+  @@unique([makeId, name])
+  @@index([name])
+  @@index([status])
+  @@map("motorcycle_models")
+}
+
+model MotorcycleVariant {
+  id        String                  @id @default(cuid())
+  modelId   String
+  model     MotorcycleModel         @relation(fields: [modelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  name      String // e.g. "CG125", "150CC", "Strom 250"
+  yearFrom  Int?
+  yearTo    Int?
+  status    MotorcycleVariantStatus @default(ACTIVE)
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  products ProductCompatibility[] @relation("CompatibilityVariant")
+
+  @@unique([modelId, name])
+  @@index([name])
+  @@index([status])
+  @@map("motorcycle_variants")
+}
+
+// Optional compatibility. A product does NOT have to be linked to a motorcycle.
+model ProductCompatibility {
+  id        String            @id @default(cuid())
+  productId String
+  product   Product           @relation("ProductCompatibilityProduct", fields: [productId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  variantId String
+  variant   MotorcycleVariant @relation("CompatibilityVariant", fields: [variantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  notes     String?
+  createdAt DateTime          @default(now())
+
+  @@unique([productId, variantId])
+  @@index([variantId])
+  @@map("product_compatibilities")
+}
+
+// ===========================================================================
+// Suppliers
+// ===========================================================================
+
+model Supplier {
+  id            String         @id @default(cuid())
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  address       String?
+  notes         String?
+  status        SupplierStatus @default(ACTIVE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  products        SupplierProduct[]      @relation("SupplierProducts")
+  purchaseOrders  PurchaseOrder[]        @relation("SupplierPurchaseOrders")
+  purchases       Purchase[]             @relation("SupplierPurchases")
+  purchaseReturns PurchaseReturn[]       @relation("SupplierPurchaseReturns")
+  creditAccount   SupplierCreditAccount?
+
+  @@index([status])
+  @@index([name])
+  @@map("suppliers")
+}
+
+// Supplier-specific product information, kept separate from Product itself so
+// product data is not polluted with vendor-specific references.
+model SupplierProduct {
+  id                 String               @id @default(cuid())
+  supplierId         String
+  supplier           Supplier             @relation("SupplierProducts", fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  productId          String
+  product            Product              @relation("SupplierProductProduct", fields: [productId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  supplierPartNumber String? // this supplier's reference for the product
+  unitCost           Decimal?             @db.Decimal(12, 2) // this supplier's typical purchase price for the product
+  notes              String?
+  isPreferred        Boolean              @default(false)
+  status             SupplierProductStatus @default(ACTIVE)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@unique([supplierId, productId])
+  @@index([supplierId, isPreferred])
+  @@index([productId])
+  @@index([supplierPartNumber])
+  @@index([status])
+  @@map("supplier_products")
+}
+
+// ===========================================================================
+// Purchasing
+// ===========================================================================
+
+model PurchaseOrder {
+  id               String              @id @default(cuid())
+  orderNumber      String              @unique
+  supplierId       String
+  supplier         Supplier            @relation("SupplierPurchaseOrders", fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  status           PurchaseOrderStatus @default(DRAFT)
+  orderDate        DateTime            @default(now())
+  expectedDelivery DateTime?
+  notes            String?
+  totalAmount      Decimal             @default(0) @db.Decimal(12, 2)
+  createdById      String
+  createdBy        User                @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  items     PurchaseOrderItem[]
+  purchases Purchase[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([orderDate])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  productId       String
+  product         Product       @relation("PurchaseOrderItemProduct", fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  quantityOrdered Int
+  unitCost        Decimal       @db.Decimal(12, 2) // agreed unit cost
+  lineTotal       Decimal       @db.Decimal(12, 2)
+  notes           String?
+
+  purchaseItems PurchaseItem[] @relation("PurchaseOrderItemItems")
+
+  @@unique([purchaseOrderId, productId])
+  @@index([productId])
+  @@map("purchase_order_items")
+}
+
+model Purchase {
+  id               String                 @id @default(cuid())
+  purchaseNumber   String                 @unique
+  purchaseOrderId  String? // null for direct purchases without a PO
+  purchaseOrder    PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  supplierId       String
+  supplier         Supplier               @relation("SupplierPurchases", fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  invoiceReference String? // supplier invoice/reference
+  status           PurchaseStatus         @default(PENDING)
+  paymentStatus    PurchasePaymentStatus  @default(UNPAID)
+  receivedAt       DateTime?
+  totalAmount      Decimal                @default(0) @db.Decimal(12, 2)
+  notes            String?
+  creditAccountId  String? // set when the purchase is on supplier credit
+  creditAccount    SupplierCreditAccount? @relation("SupplierCreditPurchases", fields: [creditAccountId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdById      String
+  createdBy        User                   @relation("PurchaseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  items          PurchaseItem[]
+  returns        PurchaseReturn[]
+  creditPayments SupplierCreditPayment[] @relation("SupplierCreditPaymentPurchase")
+
+  @@index([supplierId])
+  @@index([purchaseOrderId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([receivedAt])
+  @@map("purchases")
+}
+
+// The receiving record. Inventory increases ONLY by quantityAccepted
+// (usable/undamaged units). quantityOrdered is kept for comparison so partial
+// receiving stays historically accurate.
+model PurchaseItem {
+  id                  String             @id @default(cuid())
+  purchaseId          String
+  purchase            Purchase           @relation(fields: [purchaseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  purchaseOrderItemId String? // link to the PO line when receiving against an order
+  purchaseOrderItem   PurchaseOrderItem? @relation("PurchaseOrderItemItems", fields: [purchaseOrderItemId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  productId           String
+  product             Product            @relation("PurchaseItemProduct", fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  quantityOrdered     Int
+  quantityReceived    Int                @default(0)
+  quantityDamaged     Int                @default(0)
+  quantityMissing     Int                @default(0)
+  quantityAccepted    Int                @default(0) // usable units actually added to inventory
+  unitCost            Decimal            @db.Decimal(12, 2) // frozen purchase unit cost (authoritative for valuation)
+  lineTotal           Decimal            @db.Decimal(12, 2)
+
+  returns PurchaseReturnItem[] @relation("PurchaseReturnItemPurchaseItem")
+
+  @@index([purchaseId])
+  @@index([productId])
+  @@index([purchaseOrderItemId])
+  @@map("purchase_items")
+}
+
+model PurchaseReturn {
+  id           String               @id @default(cuid())
+  returnNumber String               @unique
+  purchaseId   String
+  purchase     Purchase             @relation(fields: [purchaseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  supplierId   String
+  supplier     Supplier             @relation("SupplierPurchaseReturns", fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  status       PurchaseReturnStatus @default(PENDING)
+  returnDate   DateTime             @default(now())
+  reason       String?
+  totalAmount  Decimal              @default(0) @db.Decimal(12, 2)
+  createdById  String
+  createdBy    User                 @relation("PurchaseReturnCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  items PurchaseReturnItem[]
+
+  @@index([purchaseId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([returnDate])
+  @@map("purchase_returns")
+}
+
+model PurchaseReturnItem {
+  id               String         @id @default(cuid())
+  purchaseReturnId String
+  purchaseReturn   PurchaseReturn @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  purchaseItemId   String
+  purchaseItem     PurchaseItem   @relation("PurchaseReturnItemPurchaseItem", fields: [purchaseItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  productId        String
+  product          Product        @relation("PurchaseReturnItemProduct", fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  quantityReturned Int
+  unitCost         Decimal        @db.Decimal(12, 2) // frozen from the purchase item
+  lineTotal        Decimal        @db.Decimal(12, 2)
+
+  @@index([purchaseReturnId])
+  @@index([purchaseItemId])
+  @@map("purchase_return_items")
+}
+
+// ===========================================================================
+// Inventory
+// ===========================================================================
+
+model Inventory {
+  id                  String   @id @default(cuid())
+  productId           String   @unique
+  product             Product  @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  quantityOnHand      Int      @default(0)
+  quantityReserved    Int      @default(0)
+  // Moving weighted-average unit cost. Recalculated atomically on every
+  // stock-in (see InventoryService). Inventory value is DERIVED as
+  // quantityOnHand x weightedAverageCost and is never stored, so it cannot
+  // drift from the quantity/cost.
+  weightedAverageCost Decimal  @default(0) @db.Decimal(12, 2)
+  updatedAt           DateTime @updatedAt
+
+  transactions InventoryTransaction[] @relation("InventoryLedger")
+
+  @@map("inventories")
+}
+
+// Ledger of every stock movement. Quantity is signed (positive = in,
+// negative = out). referenceId points at the business record that caused the
+// movement (SaleItem.id, PurchaseItem.id, SaleReturnItem.id, etc.) mapped by
+// the type value.
+//
+// Convention for RESERVATION / RESERVATION_RELEASE rows: reservations move
+// stock from available to reserved without changing quantityOnHand, so
+// quantity is 0 and balanceAfter equals the on-hand balance at that moment.
+// The reserved/released amount lives on the StockReservation record and in the
+// human-readable note. balanceAfter freezes the resulting on-hand quantity so
+// the ledger is self-contained and auditable even if later records change.
+model InventoryTransaction {
+  id           String                   @id @default(cuid())
+  productId    String
+  product      Product                  @relation("InventoryTransactionProduct", fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  inventoryId  String?
+  inventory    Inventory?               @relation("InventoryLedger", fields: [inventoryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  type         InventoryTransactionType
+  quantity     Int
+  // Historical unit cost frozen at movement time (weighted-average cost that
+  // applied to the movement). Changing the current average cost never rewrites
+  // this value. NULL where not applicable (reservations).
+  unitCost     Decimal?                 @db.Decimal(12, 2)
+  // Resulting quantityOnHand immediately after this movement.
+  balanceAfter Int
+  referenceId  String? // id of the source record (SaleItem, PurchaseItem, ...)
+  note         String?
+  createdById  String?
+  createdBy    User?                    @relation("InventoryTransactionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt    DateTime                 @default(now())
+
+  @@index([productId, createdAt])
+  @@index([referenceId])
+  @@index([type, createdAt])
+  @@index([createdAt])
+  @@map("inventory_transactions")
+}
+
+// Optional reservation support. quantityReserved on Inventory must always
+// reflect the sum of ACTIVE reservations. Services reconcile this within
+// transactions.
+model StockReservation {
+  id            String            @id @default(cuid())
+  productId     String
+  product       Product           @relation("StockReservationProduct", fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  quantity      Int
+  status        ReservationStatus @default(ACTIVE)
+  reservedUntil DateTime?
+  note          String?
+  createdById   String
+  createdBy     User              @relation("ReservationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([productId, status])
+  @@index([status])
+  @@index([reservedUntil])
+  @@map("stock_reservations")
+}
+
+// ===========================================================================
+// Sales
+// ===========================================================================
+
+model Customer {
+  id        String         @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  type      CustomerType   @default(RETAIL)
+  status    CustomerStatus @default(ACTIVE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  sales         Sale[]                 @relation("CustomerSales")
+  returns       SaleReturn[]           @relation("CustomerSaleReturns")
+  creditAccount CustomerCreditAccount?
+
+  @@index([status])
+  @@index([name])
+  @@index([phone])
+  @@map("customers")
+}
+
+model Sale {
+  id          String     @id @default(cuid())
+  saleNumber  String     @unique
+  customerId  String? // optional: walk-in sales need no customer
+  customer    Customer?  @relation("CustomerSales", fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  saleType    SaleType   @default(RETAIL)
+  status      SaleStatus @default(COMPLETED)
+  subtotal    Decimal    @default(0) @db.Decimal(12, 2)
+  discount    Decimal    @default(0) @db.Decimal(12, 2)
+  totalAmount Decimal    @default(0) @db.Decimal(12, 2) // subtotal - discount
+  notes       String?
+  createdById String
+  createdBy   User       @relation("SaleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  items    SaleItem[]
+  payments Payment[]
+  returns  SaleReturn[] @relation("SaleReturns")
+
+  @@index([customerId])
+  @@index([saleType])
+  @@index([status])
+  @@index([createdAt])
+  @@map("sales")
+}
+
+// unitPrice is frozen at sale time so later price changes never affect this
+// sale. Discount is the line-level discount in addition to any sale-level
+// discount on Sale.
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  productId String
+  product   Product @relation("SaleItemProduct", fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  quantity  Int
+  unitPrice Decimal @db.Decimal(12, 2) // frozen unit price at sale time
+  discount  Decimal @default(0) @db.Decimal(12, 2)
+  lineTotal Decimal @db.Decimal(12, 2) // (unitPrice * quantity) - discount
+  // Historical weighted-average cost frozen at sale time (COGS). Never
+  // recalculated from current inventory cost — reports always use this.
+  unitCost  Decimal @default(0) @db.Decimal(12, 2)
+  lineCost  Decimal @default(0) @db.Decimal(12, 2) // unitCost * quantity
+
+  returns SaleReturnItem[] @relation("SaleReturnItemSaleItem")
+
+  @@unique([saleId, productId])
+  @@index([productId])
+  @@map("sale_items")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  saleId        String
+  sale          Sale          @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paymentMethod PaymentMethod
+  amount        Decimal       @db.Decimal(12, 2)
+  reference     String? // M-Pesa transaction id, bank reference, etc.
+  paidAt        DateTime      @default(now())
+  createdById   String
+  createdBy     User          @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt     DateTime      @default(now())
+
+  @@index([saleId])
+  @@index([paymentMethod, paidAt])
+  @@index([reference])
+  @@map("payments")
+}
+
+model SaleReturn {
+  id           String           @id @default(cuid())
+  returnNumber String           @unique
+  saleId       String
+  sale         Sale             @relation("SaleReturns", fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customerId   String?
+  customer     Customer?        @relation("CustomerSaleReturns", fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  status       SaleReturnStatus @default(PENDING)
+  returnDate   DateTime         @default(now())
+  reason       String?
+  totalAmount  Decimal          @default(0) @db.Decimal(12, 2) // refund/credit total
+  // How the refund was settled. CREDIT_ADJUSTMENT is represented by a null
+  // refundMethod together with creditAdjusted = true (the customer's
+  // outstanding balance was reduced instead of paying money back).
+  refundMethod   PaymentMethod?
+  refundReference String?
+  creditAdjusted Boolean        @default(false)
+  createdById  String
+  createdBy    User             @relation("SaleReturnCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  items SaleReturnItem[]
+
+  @@index([saleId])
+  @@index([customerId])
+  @@index([status])
+  @@index([returnDate])
+  @@map("sale_returns")
+}
+
+model SaleReturnItem {
+  id               String     @id @default(cuid())
+  saleReturnId     String
+  saleReturn       SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  saleItemId       String
+  saleItem         SaleItem   @relation("SaleReturnItemSaleItem", fields: [saleItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  productId        String
+  product          Product    @relation("SaleReturnItemProduct", fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  quantityReturned Int
+  unitPrice        Decimal    @db.Decimal(12, 2) // frozen from the sale item
+  lineTotal        Decimal    @db.Decimal(12, 2)
+  condition        ReturnCondition @default(GOOD)
+
+  @@index([saleReturnId])
+  @@index([saleItemId])
+  @@map("sale_return_items")
+}
+
+// ===========================================================================
+// Customer credit
+// ===========================================================================
+
+model CustomerCreditAccount {
+  id                 String              @id @default(cuid())
+  customerId         String              @unique
+  customer           Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  creditLimit        Decimal             @default(0) @db.Decimal(12, 2) // 0 = no credit allowed
+  outstandingBalance Decimal             @default(0) @db.Decimal(12, 2)
+  status             CreditAccountStatus @default(ACTIVE)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  payments CustomerCreditPayment[]
+
+  @@map("customer_credit_accounts")
+}
+
+model CustomerCreditPayment {
+  id            String                @id @default(cuid())
+  accountId     String
+  account       CustomerCreditAccount @relation(fields: [accountId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paymentMethod PaymentMethod
+  amount        Decimal               @db.Decimal(12, 2)
+  reference     String?
+  paidAt        DateTime              @default(now())
+  createdById   String
+  createdBy     User                  @relation("CustomerCreditPaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt     DateTime              @default(now())
+
+  @@index([accountId])
+  @@index([paidAt])
+  @@map("customer_credit_payments")
+}
+
+// ===========================================================================
+// Supplier credit
+// ===========================================================================
+
+model SupplierCreditAccount {
+  id                 String              @id @default(cuid())
+  supplierId         String              @unique
+  supplier           Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  outstandingBalance Decimal             @default(0) @db.Decimal(12, 2)
+  status             CreditAccountStatus @default(ACTIVE)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  purchases Purchase[]              @relation("SupplierCreditPurchases")
+  payments  SupplierCreditPayment[] @relation("SupplierCreditAccountPayments")
+
+  @@map("supplier_credit_accounts")
+}
+
+// Purchase remains the source transaction. Payments reduce the supplier's
+// outstanding balance; the purchase is never re-created as a financial event.
+model SupplierCreditPayment {
+  id            String                @id @default(cuid())
+  accountId     String
+  account       SupplierCreditAccount @relation("SupplierCreditAccountPayments", fields: [accountId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  purchaseId    String? // the purchase being settled (optional for general account payments)
+  purchase      Purchase?             @relation("SupplierCreditPaymentPurchase", fields: [purchaseId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  paymentMethod PaymentMethod
+  amount        Decimal               @db.Decimal(12, 2)
+  reference     String?
+  paidAt        DateTime              @default(now())
+  createdById   String
+  createdBy     User                  @relation("SupplierCreditPaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt     DateTime              @default(now())
+
+  @@index([accountId])
+  @@index([purchaseId])
+  @@index([paidAt])
+  @@map("supplier_credit_payments")
+}
+
+// ===========================================================================
+// Finance
+// ===========================================================================
+
+model ExpenseCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  expenses Expense[] @relation("ExpenseCategoryExpenses")
+
+  @@map("expense_categories")
+}
+
+model Expense {
+  id            String          @id @default(cuid())
+  categoryId    String
+  category      ExpenseCategory @relation("ExpenseCategoryExpenses", fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  amount        Decimal         @db.Decimal(12, 2)
+  expenseDate   DateTime        @default(now())
+  description   String?
+  reference     String? // invoice/receipt reference
+  paymentMethod PaymentMethod? // optional; an expense may be recorded without a method
+  status        ExpenseStatus   @default(ACTIVE) // VOIDED expenses stay for audit, excluded from totals
+  createdById   String
+  createdBy     User            @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([categoryId])
+  @@index([expenseDate])
+  @@index([paymentMethod])
+  @@map("expenses")
+}
