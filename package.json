@@ -1,0 +1,22 @@
+{
+  "name": "makire-motorparts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MAKIRE MOTORPARTS — Motorcycle spare parts management system (project root orchestration)",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm --prefix server run build && npm --prefix client run build",
+    "start": "npm --prefix server run start",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix client run typecheck",
+    "lint": "npm --prefix server run lint && npm --prefix client run lint",
+    "prisma:generate": "npm --prefix server run prisma:generate",
+    "prisma:migrate": "npm --prefix server run prisma:migrate",
+    "prisma:migrate:deploy": "npm --prefix server run prisma:migrate:deploy",
+    "prisma:studio": "npm --prefix server run prisma:studio",
+    "db:seed": "npm --prefix server run db:seed"
+  }
+}
