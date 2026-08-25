@@ -6,12 +6,16 @@ import helmet from 'helmet';
 import { config } from './config/env.js';
 import { csrfProtection } from './middleware/csrf.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
-import { createAuthLoginLimiter, globalLimiter } from './middleware/rateLimit.js';
+import { createAuthLoginLimiter, createPasswordResetLimiter, globalLimiter } from './middleware/rateLimit.js';
 import { requestContext, requestLogger } from './middleware/requestLogger.js';
 import apiRouter from './routes/index.js';
 
 export interface CreateAppOptions {
   loginRateLimit?: {
+    windowMs?: number;
+    max?: number;
+  };
+  passwordResetRateLimit?: {
     windowMs?: number;
     max?: number;
   };
@@ -49,6 +53,8 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.use(csrfProtection);
   app.use('/api', globalLimiter);
   app.use('/api/auth/login', createAuthLoginLimiter(options.loginRateLimit));
+  app.use('/api/auth/forgot-password', createPasswordResetLimiter(options.passwordResetRateLimit));
+  app.use('/api/auth/reset-password', createPasswordResetLimiter(options.passwordResetRateLimit));
   app.use('/api', apiRouter);
 
   app.use(notFoundHandler);

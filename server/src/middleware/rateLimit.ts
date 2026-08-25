@@ -73,3 +73,26 @@ export function createAuthLoginLimiter(options?: {
     }),
   );
 }
+
+// Password-reset limiter: 5 requests per 15 minutes per IP.
+// Prevents email flooding (forgot-password) and token brute-force (reset-password).
+export function createPasswordResetLimiter(options?: {
+  windowMs?: number;
+  max?: number;
+}): Limiter {
+  return failClosed(
+    rateLimit({
+      windowMs: options?.windowMs ?? 15 * 60_000,
+      max: options?.max ?? 5,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: {
+        error: {
+          code: 'RATE_LIMITED',
+          message: 'Too many password reset attempts. Please try again later.',
+        },
+      },
+      keyGenerator: ipKey,
+    }),
+  );
+}
