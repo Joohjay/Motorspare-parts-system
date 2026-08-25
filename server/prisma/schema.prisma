@@ -1,4 +1,4 @@
-// MAKIRE MOTORPARTS — Stage 2 database schema
+// JM SPAREPARTS — Motorcycle spare parts management and sales system
 //
 // Motorcycle spare parts management and sales system.
 // One physical location, two roles (ADMIN / ASSISTANT), no branches.
