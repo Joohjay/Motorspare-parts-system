@@ -81,6 +81,7 @@ export async function apiRequest<T>(
     ...options,
     headers,
     credentials: 'include',
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (res.status === 401) {
