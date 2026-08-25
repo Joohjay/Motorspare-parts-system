@@ -439,6 +439,9 @@ export async function adjust(input: {
   if (!Number.isInteger(quantity) || quantity === 0) {
     throw new ApiError(400, 'INVALID_QUANTITY', 'Adjustment quantity must be a non-zero integer');
   }
+  if (Math.abs(quantity) > 10_000) {
+    throw new ApiError(400, 'ADJUSTMENT_TOO_LARGE', 'Adjustment magnitude cannot exceed 10,000 units');
+  }
   if (!input.reason || input.reason.trim().length === 0) {
     throw new ApiError(400, 'REASON_REQUIRED', 'A reason is required for stock adjustments');
   }
