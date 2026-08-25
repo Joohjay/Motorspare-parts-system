@@ -657,20 +657,23 @@ model PurchaseItem {
 }
 
 model PurchaseReturn {
-  id           String               @id @default(cuid())
-  returnNumber String               @unique
-  purchaseId   String
-  purchase     Purchase             @relation(fields: [purchaseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  supplierId   String
-  supplier     Supplier             @relation("SupplierPurchaseReturns", fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  status       PurchaseReturnStatus @default(PENDING)
-  returnDate   DateTime             @default(now())
-  reason       String?
-  totalAmount  Decimal              @default(0) @db.Decimal(12, 2)
-  createdById  String
-  createdBy    User                 @relation("PurchaseReturnCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id              String               @id @default(cuid())
+  returnNumber    String               @unique
+  purchaseId      String
+  purchase        Purchase             @relation(fields: [purchaseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  supplierId      String
+  supplier        Supplier             @relation("SupplierPurchaseReturns", fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  status          PurchaseReturnStatus @default(PENDING)
+  returnDate      DateTime             @default(now())
+  reason          String?
+  totalAmount     Decimal              @default(0) @db.Decimal(12, 2)
+  creditedAmount  Decimal              @default(0) @db.Decimal(12, 2)
+  refundMethod    PaymentMethod?
+  refundReference String?
+  createdById     String
+  createdBy       User                 @relation("PurchaseReturnCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
   items PurchaseReturnItem[]
 

@@ -232,3 +232,78 @@ Response
   `server/src/config/env.ts`.
 - Production startup fails if `JWT_SECRET` is a placeholder or `CLIENT_ORIGIN`
   is not HTTPS.
+## Stage 8 — completed
+
+Operational hardening: purchase returns, receipts, management dashboard,
+notifications, business settings, themed login, and UI polish.
+
+### Purchase returns (financial & inventory integrity)
+
+- **One-step completion.** Returns are created directly as `COMPLETED`
+  (mirroring purchases and sales returns); the only corrective operation is an
+  ADMIN **cancel**, which is a full reversal, not an edit. Completed returns
+  are otherwise immutable.
+- **Atomicity.** Header + items + inventory movements + supplier settlement
+  happen in a single Prisma transaction. Any failure rolls everything back —
+  including the `PURCHASE_RETURN` document number, which is consumed with an
+  atomic `UPDATE … RETURNING` inside the same transaction.
+- **Returnable caps.** The purchase row is locked (`SELECT … FOR UPDATE`)
+  first, so concurrent returns against one purchase serialize. Per line,
+  returnable = `quantityAccepted − Σ previous COMPLETED returns`; exceeding it
+  fails with `RETURN_EXCEEDS_RETURNABLE`.
+- **Costing.** Stock leaves at the **current weighted-average cost** via
+  InventoryService (decreasing stock never changes the average; a ledger row
+  freezes `unitCost` and `balanceAfter`). The supplier is settled at each
+  line's **frozen purchase cost**; the return item stores that frozen cost.
+  Any frozen-vs-current difference is a realized gain/loss inherent to
+  weighted-average costing and is intentionally not amortized.
+- **Settlement.** `SUPPLIER_CREDIT` reduces the supplier credit account's
+  outstanding balance under a row lock, clamped at zero (`credited = min(total,
+  balance)`); any remainder is reported as `refundDue`. `REFUND` records a
+  payment method/reference for the full amount. `NONE` defers settlement.
+  Balances can never go negative.
+- **Cancellation.** ADMIN cancel restocks at the return's frozen cost (ledger
+  type `ADJUSTMENT` referencing the return) and re-charges the credit account,
+  capped by available headroom so balances stay ≥ 0; any non-restorable part
+  is reported back to the caller. Double cancellation is rejected.
+
+### Receipts
+
+- `GET /api/sales/:id/receipt` composes the role-safe sale projection (the
+  ASSISTANT variant never contains COGS/gross profit), current business
+  settings, and the customer's outstanding credit balance when applicable.
+- Receipts print from a dedicated page using CSS `print:hidden` on the app
+  shell (sidebar/header/footer) plus Tailwind print variants, so only the
+  receipt paper reaches the printer. The sale's own number doubles as the
+  receipt number — no second numbering scheme.
+
+### Management dashboard
+
+- A single aggregated `GET /api/dashboard`, computed server-side by reusing
+  the exact report functions used by the reports module (one source of truth).
+  ASSISTANT responses are stripped of COGS, gross profit, expenses, and net
+  profit server-side — not hidden client-side.
+
+### Notifications
+
+- Per-user inbox backed by the existing `notifications` table. Low/out-of-stock
+  alerts are created idempotently by InventoryService after stock movements.
+  All notification endpoints scope strictly by the authenticated user; there
+  is no "read anyone's notifications" path. The UI polls unread counts (~60s)
+  and marks items read explicitly; unread state uses a dot AND bold text, never
+  colour alone.
+
+### Business settings
+
+- Whitelisted keys only (business name/address/phone/email/currency/timezone/
+  receipt footer) stored in the existing `settings` key/value table. Reads are
+  authenticated; writes are ADMIN-only, zod-validated, and audited
+  (`SETTINGS_UPDATED`) with before/after values. Technical configuration and
+  secrets never pass through this endpoint.
+
+### Login & UI
+
+- Split-screen login with inline-SVG motorcycle artwork (no external assets),
+  keeping the JM SPAREPARTS branding. Navigation gained Purchase returns,
+  Notifications, and Business settings entries; dashboard quick actions are
+  permission-filtered; tables share consistent empty/loading/error states.

@@ -16,6 +16,7 @@ import {
   errorMessage,
 } from '@/components/ui/FormControls';
 import { Modal } from '@/components/ui/Modal';
+import { PurchaseReturnModal } from '@/pages/purchasing/PurchaseReturnModal';
 import { PaginationControls } from '@/components/ui/PaginationControls';
 import { ApiClientError } from '@/lib/api';
 import { productsApi } from '@/lib/catalogApi';
@@ -70,6 +71,7 @@ export function PurchasesPage() {
 
   const [detail, setDetail] = useState<Purchase | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [returning, setReturning] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -279,9 +281,29 @@ export function PurchasesPage() {
                 </tbody>
               </table>
               {detail.notes && <p className="rounded-lg bg-slate-50 px-3 py-2 text-slate-600">{detail.notes}</p>}
+              {isAdmin && detail.status === 'COMPLETED' ? (
+                <div className="flex justify-end border-t border-slate-100 pt-3">
+                  <Button variant="danger" onClick={() => setReturning(true)}>
+                    Return items to supplier
+                  </Button>
+                </div>
+              ) : null}
             </div>
           )}
         </Modal>
+      )}
+
+      {returning && detail && (
+        <PurchaseReturnModal
+          purchase={detail}
+          onClose={() => setReturning(false)}
+          onDone={(purchaseReturn) => {
+            setReturning(false);
+            setDetail(null);
+            setSuccess(`Return recorded — ${purchaseReturn.returnNumber}. Inventory and supplier credit updated.`);
+            setReloadTick((t) => t + 1);
+          }}
+        />
       )}
 
       {receiveOpen && (

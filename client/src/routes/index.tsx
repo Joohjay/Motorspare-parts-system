@@ -19,16 +19,20 @@ import { InventoryDetailPage } from '@/pages/inventory/InventoryDetailPage';
 import { InventoryPage } from '@/pages/inventory/InventoryPage';
 import { ReservationsPage } from '@/pages/inventory/ReservationsPage';
 import { PurchaseOrdersPage } from '@/pages/purchasing/PurchaseOrdersPage';
+import { PurchaseReturnsPage } from '@/pages/purchasing/PurchaseReturnsPage';
 import { PurchasesPage } from '@/pages/purchasing/PurchasesPage';
 import { SupplierCreditPage } from '@/pages/purchasing/SupplierCreditPage';
 import { SuppliersPage } from '@/pages/purchasing/SuppliersPage';
 import { PosPage } from '@/pages/sales/PosPage';
 import { SaleDetailPage } from '@/pages/sales/SaleDetailPage';
+import { ReceiptPage } from '@/pages/sales/ReceiptPage';
 import { SalesHistoryPage } from '@/pages/sales/SalesHistoryPage';
 import { SalesReturnsPage } from '@/pages/sales/SalesReturnsPage';
 import { CustomerDetailPage } from '@/pages/customers/CustomerDetailPage';
 import { CustomersPage } from '@/pages/customers/CustomersPage';
 import { ExpensesPage } from '@/pages/finance/ExpensesPage';
+import { NotificationsPage } from '@/pages/notifications/NotificationsPage';
+import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { ReportsPage } from '@/pages/reports/ReportsPage';
 
 export const router = createBrowserRouter([
@@ -56,15 +60,19 @@ export const router = createBrowserRouter([
           { path: 'purchasing/suppliers', element: <SuppliersPage /> },
           { path: 'purchasing/purchase-orders', element: <PurchaseOrdersPage /> },
           { path: 'purchasing/purchases', element: <PurchasesPage /> },
+          { path: 'purchasing/purchase-returns', element: <PurchaseReturnsPage /> },
           { path: 'purchasing/credit', element: <SupplierCreditPage /> },
           { path: 'pos', element: <PosPage /> },
           { path: 'sales', element: <SalesHistoryPage /> },
           { path: 'sales/returns', element: <SalesReturnsPage /> },
           { path: 'sales/:id', element: <SaleDetailPage /> },
+          { path: 'sales/:id/receipt', element: <ReceiptPage /> },
           { path: 'customers', element: <CustomersPage /> },
           { path: 'customers/:id', element: <CustomerDetailPage /> },
           { path: 'expenses', element: <ExpensesPage /> },
           { path: 'reports', element: <ReportsPage /> },
+          { path: 'notifications', element: <NotificationsPage /> },
+          { path: 'settings', element: <SettingsPage /> },
           {
             element: <RequireAdmin />,
             children: [

@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthContext';
+import { NotificationBell } from '@/components/layout/NotificationBell';
 import { appConfig } from '@/config/env';
 import { GearMark } from '@/components/ui/GearMark';
 
@@ -38,6 +39,7 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
       { to: '/purchasing/suppliers', label: 'Suppliers' },
       { to: '/purchasing/purchase-orders', label: 'Purchase orders' },
       { to: '/purchasing/purchases', label: 'Receiving' },
+      { to: '/purchasing/purchase-returns', label: 'Purchase returns' },
       { to: '/purchasing/credit', label: 'Supplier credit' },
     ],
   },
@@ -59,6 +61,10 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
       { to: '/expenses', label: 'Expenses', end: true },
       { to: '/reports', label: 'Reports', end: true },
     ],
+  },
+  {
+    heading: 'Admin',
+    items: [{ to: '/settings', label: 'Business settings', end: true }],
   },
 ];
 
@@ -134,7 +140,7 @@ export function RootLayout() {
   if (!authenticated) {
     return (
       <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
-        <header className="border-b border-slate-200 bg-white">
+        <header className="print:hidden border-b border-slate-200 bg-white">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
             <BrandMark />
             {status === 'loading' ? (
@@ -156,7 +162,7 @@ export function RootLayout() {
           <Outlet />
         </main>
 
-        <footer className="border-b border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
+        <footer className="print:hidden border-b border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
           {appConfig.name} — {appConfig.tagline}
         </footer>
       </div>
@@ -165,53 +171,51 @@ export function RootLayout() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-slate-200 bg-white lg:flex">
-        <div className="flex h-16 items-center border-b border-slate-200 px-4">
-          <BrandMark />
+      {/* ── Full-width hero navbar ── */}
+      <header className="print:hidden fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
+        <BrandMark />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <NotificationBell />
+          <UserBadge compact />
+          <SignOutButton className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900" />
         </div>
+      </header>
+
+      {/* ── Desktop sidebar (below navbar) ── */}
+      <aside className="print:hidden fixed bottom-0 left-0 top-16 z-40 hidden w-64 overflow-y-auto border-r border-slate-200 bg-white lg:block">
         <SidebarNav />
-        <div className="space-y-2 border-t border-slate-200 p-3">
-          <UserBadge />
-          <SignOutButton className="w-full rounded-lg px-3 py-1.5 text-left hover:bg-slate-100" />
-        </div>
       </aside>
 
-      <div className="flex min-h-screen flex-col lg:pl-64">
-        {/* Mobile top bar */}
-        <header className="sticky top-0 z-40 border-b border-slate-200 bg-white lg:hidden">
-          <div className="flex h-14 items-center justify-between px-4">
-            <BrandMark />
-            <div className="flex items-center gap-3">
-              <UserBadge compact />
-              <SignOutButton />
-            </div>
-          </div>
-          <nav aria-label="Main navigation" className="flex gap-1 overflow-x-auto px-2 pb-2">
-            {NAV_GROUPS.flatMap((group) => group.items).map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  `whitespace-nowrap rounded-full px-3 py-1.5 text-xs ${
-                    isActive
-                      ? 'bg-brand-50 font-medium text-brand-700'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-        </header>
+      {/* ── Main column ── */}
+      <div className="flex min-h-screen flex-col pt-16 lg:pl-64">
+        {/* Mobile nav pills (below hero navbar) */}
+        <nav
+          aria-label="Main navigation"
+          className="print:hidden sticky top-16 z-30 flex gap-1 overflow-x-auto border-b border-slate-200 bg-white px-2 py-2 lg:hidden"
+        >
+          {NAV_GROUPS.flatMap((g) => g.items).map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                `whitespace-nowrap rounded-full px-3 py-1.5 text-xs ${
+                  isActive
+                    ? 'bg-brand-50 font-medium text-brand-700'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
           <Outlet />
         </main>
 
-        <footer className="bg-white py-4 text-center text-xs text-slate-400">
+        <footer className="print:hidden bg-white py-4 text-center text-xs text-slate-400">
           {appConfig.name} — {appConfig.tagline}
         </footer>
       </div>

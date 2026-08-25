@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express';
 
 import * as salesService from '../services/salesService.js';
+import { getCreditAccount } from '../services/customerCreditService.js';
+import { getPublicSettings } from '../services/settingsService.js';
 import * as salesReturnService from '../services/salesReturnService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { requireActor } from '../utils/authActor.js';
@@ -63,4 +65,26 @@ export const getSaleReturn = asyncHandler(async (req: Request, res: Response) =>
 export const listSaleReturns = asyncHandler(async (req: Request, res: Response) => {
   const query = saleReturnListQuery.parse(req.query);
   res.json(await salesReturnService.listSaleReturns(query));
+});
+
+export const getSaleReceipt = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = idParamSchema.parse(req.params);
+  const actor = requireActor(req);
+  // Role-safe sale projection (ASSISTANT never sees COGS/grossProfit).
+  const sale = await salesService.getSale(id, actor.role);
+  const [business, credit] = await Promise.all([
+    getPublicSettings(),
+    sale.customerId
+      ? getCreditAccount(sale.customerId)
+          .then((account) => ({ outstandingBalance: account.outstandingBalance }))
+          .catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  res.json({
+    receipt: {
+      business,
+      sale,
+      customerCreditOutstanding: credit ? Number(credit.outstandingBalance) : null,
+    },
+  });
 });

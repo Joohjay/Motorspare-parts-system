@@ -854,3 +854,173 @@ export interface FinancialReport {
     netOperatingResult: string;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Stage 8 — purchase returns, receipts, dashboard, notifications, settings
+// ---------------------------------------------------------------------------
+
+export interface PurchaseReturnItem {
+  id: string;
+  purchaseItemId: string;
+  productId: string;
+  sku: string;
+  name: string;
+  quantityReturned: number;
+  unitCost: string;
+  lineTotal: string;
+}
+
+export type PurchaseReturnStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
+
+export interface PurchaseReturn {
+  id: string;
+  returnNumber: string;
+  purchase: { id: string; purchaseNumber: string; invoiceReference: string | null; status: PurchaseStatus };
+  supplier: { id: string; name: string };
+  createdBy: { id: string; fullName: string };
+  status: PurchaseReturnStatus;
+  reason: string | null;
+  returnDate: string;
+  totalAmount: string;
+  creditedAmount: string;
+  refundDue: string;
+  items: PurchaseReturnItem[];
+}
+
+export interface PurchaseReturnListItem {
+  id: string;
+  returnNumber: string;
+  purchaseNumber: string;
+  supplierId: string;
+  supplierName: string;
+  status: PurchaseReturnStatus;
+  totalAmount: string;
+  creditedAmount: string;
+  itemCount: number;
+  createdBy: { id: string; fullName: string } | null;
+  returnDate: string;
+}
+
+export interface PurchaseReturnCreateInput {
+  items: Array<{ purchaseItemId: string; quantity: number }>;
+  reason: string;
+  settlement?: 'SUPPLIER_CREDIT' | 'REFUND' | 'NONE';
+  refundMethod?: PaymentMethod;
+  refundReference?: string | null;
+}
+
+export interface ReceiptData {
+  business: Record<string, string>;
+  sale: Sale;
+  customerCreditOutstanding: number | null;
+}
+
+export interface DashboardPaymentEntry {
+  paymentMethod: PaymentMethod;
+  total: number;
+}
+
+export interface DashboardInventoryAlertItem {
+  productId: string;
+  sku: string;
+  name: string;
+  quantity: number;
+  minimumStock: number;
+}
+
+export interface DashboardTopProduct {
+  productId: string;
+  sku: string;
+  name: string;
+  unitsSold: number;
+  revenue: number;
+}
+
+export interface DashboardDebtor {
+  customerId: string;
+  name: string;
+  phone: string | null;
+  outstandingBalance: string;
+  creditLimit: string;
+}
+
+export interface Dashboard {
+  generatedAt: string;
+  todaySales: {
+    saleCount: number;
+    revenue: number;
+    discounts: number;
+    averageSaleValue: number;
+  };
+  paymentBreakdownToday: DashboardPaymentEntry[];
+  inventoryAlerts: {
+    lowStockCount: number;
+    outOfStockCount: number;
+    lowStockItems: DashboardInventoryAlertItem[];
+  };
+  creditSummary: {
+    activeAccounts: number;
+    totalOutstanding: string;
+    topDebtors: DashboardDebtor[];
+  };
+  recentSales: Array<{
+    id: string;
+    saleNumber: string;
+    status: SaleStatus;
+    totalAmount: number;
+    createdAt: string;
+    cashierName: string;
+    customerName: string | null;
+  }>;
+  recentPurchases: Array<{
+    id: string;
+    purchaseNumber: string;
+    status: PurchaseOrderStatus | PurchaseStatus;
+    totalAmount: number;
+    createdAt: string;
+    supplierName: string;
+  }>;
+  pendingPurchaseOrders: number;
+  supplierCredit: {
+    activeAccounts: number;
+    totalOutstanding: number;
+  };
+  topProductsThisMonth: DashboardTopProduct[];
+  // ADMIN-only
+  todayFinancials?: {
+    cogs: number;
+    grossProfit: number;
+    expensesTotal: number;
+    netProfit: number;
+  };
+}
+
+export type NotificationType =
+  | 'GENERAL'
+  | 'LOW_STOCK'
+  | 'OUT_OF_STOCK'
+  | 'CUSTOMER_CREDIT_DUE'
+  | 'SUPPLIER_PAYMENT_DUE'
+  | 'PURCHASE_ORDER_PENDING'
+  | 'RESERVATION_PENDING';
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  data: Record<string, unknown> | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface BusinessSettings {
+  'business.name': string;
+  'business.address': string;
+  'business.phone': string;
+  'business.email': string;
+  'business.currency': string;
+  'business.timezone': string;
+  'business.receiptFooter': string;
+}

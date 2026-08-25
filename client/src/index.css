@@ -28,3 +28,18 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
+/* ---------------------------------------------------------------------------
+ * Print styles (Stage 8 receipts)
+ * When printing, only the receipt paper is shown — the application shell
+ * (sidebar, header, buttons) is hidden so nothing else reaches the page.
+ * ------------------------------------------------------------------------- */
+@media print {
+  body {
+    background: white;
+  }
+
+  /* Hide everything by default, then re-show the receipt subtree. */
+  body.printing-receipt #root {
+    display: none;
+  }
+}

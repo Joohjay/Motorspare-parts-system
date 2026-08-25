@@ -11,6 +11,8 @@ router.use(requireAuth);
 router.get('/', saleController.listSales);
 router.post('/', requireAuth, saleController.createSale);
 router.get('/:id', saleController.getSale);
+// Stage 8 — printable receipt (frozen snapshot + current business settings)
+router.get('/:id/receipt', saleController.getSaleReceipt);
 router.post('/:id/void', requireAdmin, saleController.voidSale);
 
 // Sales returns (financially sensitive — ADMIN processes them)

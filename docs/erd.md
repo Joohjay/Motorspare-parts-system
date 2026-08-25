@@ -148,3 +148,20 @@ erDiagram
 - Line items cascade with their parent headers; optional links (PurchaseOrder,
   purchaseOrderItem, inventory) use `ON DELETE SET NULL` so history remains
   readable even if the parent reference is removed.
+## Stage 8 schema additions
+
+One additive migration (`202608210003_stage8_purchase_returns`) extends the
+existing `purchase_returns` table (modelled since Stage 2) with settlement
+columns, and registers the `PURCHASE_RETURN` document sequence:
+
+- `creditedAmount numeric(12,2) NOT NULL DEFAULT 0` — the portion of the
+  return total settled against an active supplier credit account (clamped at
+  the account's outstanding balance; never negative).
+- `refundMethod "PaymentMethod" NULL` — how a cash refund was or will be paid
+  (`REFUND` settlement only).
+- `refundReference text NULL` — provider/transaction reference for that refund.
+- `document_sequences` gains one row: `PURCHASE_RETURN`, prefix
+  `PURCHASE_RETURN`, zero-padded to 6 digits.
+
+No other tables changed. Notifications and Settings were modelled in Stage 2
+and simply gained their API surface in Stage 8.

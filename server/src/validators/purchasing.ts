@@ -1,6 +1,7 @@
 import {
   PaymentMethod,
   PurchaseOrderStatus,
+  PurchaseReturnStatus,
   PurchaseStatus,
   PurchasePaymentStatus,
 } from '@prisma/client';
@@ -186,4 +187,39 @@ export const idParamSchema = z.object({
 
 export const productIdParamSchema = z.object({
   productId: z.string().min(1).max(128),
+});
+// ---------------------------------------------------------------------------
+// Purchase returns (Stage 8)
+// ---------------------------------------------------------------------------
+
+export const purchaseReturnItemInput = z.object({
+  purchaseItemId: z.string().min(1).max(128),
+  quantity: positiveQuantity,
+});
+
+export const purchaseReturnCreateSchema = z
+  .object({
+    items: z.array(purchaseReturnItemInput).min(1, 'At least one return line is required').max(100),
+    reason: z.string().trim().min(3, 'A reason is required for purchase returns').max(500),
+    settlement: z.enum(['SUPPLIER_CREDIT', 'REFUND', 'NONE']).default('NONE'),
+    refundMethod: z.nativeEnum(PaymentMethod).optional(),
+    refundReference: z.string().trim().max(120).optional().nullable(),
+  })
+  .refine(
+    (v) => v.settlement !== 'REFUND' || v.refundMethod !== undefined,
+    { message: 'refundMethod is required when settling by refund', path: ['refundMethod'] },
+  )
+  .refine(
+    (v) => v.settlement !== 'SUPPLIER_CREDIT' || !(v.refundMethod || v.refundReference),
+    { message: 'Refund details must not be set when settling by supplier credit', path: ['refundMethod'] },
+  );
+
+export const purchaseReturnListQuery = z.object({
+  q: z.string().trim().max(120).optional(),
+  purchaseId: z.string().min(1).max(128).optional(),
+  supplierId: z.string().min(1).max(128).optional(),
+  status: z.nativeEnum(PurchaseReturnStatus).optional(),
+  ...sortSchema(['returnDate', 'totalAmount', 'createdAt'], 'returnDate'),
+  page: page.default(1),
+  pageSize: pageSize.default(DEFAULT_PAGE_SIZE),
 });

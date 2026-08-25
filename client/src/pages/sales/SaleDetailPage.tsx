@@ -157,6 +157,9 @@ export function SaleDetailPage(): ReactElement {
         <div>
           <Link to="/sales" className="text-sm text-brand-700 hover:underline">
             ← Sales
+          </Link>{' '}
+          <Link to={`/sales/${sale.id}/receipt`} className="text-sm text-slate-500 hover:text-brand-700 hover:underline">
+            · Print receipt
           </Link>
           <h1 className="mt-1 text-2xl font-semibold text-slate-900">{sale.saleNumber}</h1>
           <p className="text-sm text-slate-500">
