@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
 
+import { config } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 
 export class ApiError extends Error {
@@ -125,7 +126,7 @@ export function errorHandler(
     statusCode = 400;
     code = 'INVALID_REQUEST';
     message = 'Invalid request data';
-    details = err.flatten();
+    details = config.isProduction ? undefined : err.flatten();
     logger.warn('[error] zod validation', { path: _req.path, issues: JSON.stringify(err.issues) });
   
   } else if (err instanceof SyntaxError) {
