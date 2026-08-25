@@ -71,14 +71,20 @@ export async function updateSettings(
 ): Promise<Record<string, string>> {
   const changed: Record<string, { before: string; after: string }> = {};
 
+  // Defense-in-depth: reject keys outside the public whitelist even if the
+  // controller's Zod validation is ever bypassed.
+  const safeKeys = Object.keys(body).filter((k) => PUBLIC_KEYS.includes(k));
+  if (safeKeys.length === 0) return getPublicSettings();
+
   await prisma.$transaction(async (tx) => {
     const currentRows = await tx.setting.findMany({
-      where: { key: { in: Object.keys(body) } },
+      where: { key: { in: safeKeys } },
       select: { key: true, value: true },
     });
     const currentByKey = new Map(currentRows.map((row) => [row.key, row.value]));
 
-    for (const [key, value] of Object.entries(body)) {
+    for (const key of safeKeys) {
+      const value = body[key]!;
       const before = currentByKey.get(key);
       if (before === value) continue;
       await tx.setting.upsert({

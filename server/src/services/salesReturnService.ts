@@ -73,6 +73,8 @@ export async function createSaleReturn(
   context: Context,
 ) {
   const result = await prisma.$transaction(async (tx) => {
+    // Lock the sale row to prevent concurrent returns from exceeding returnable caps.
+    await tx.$queryRaw`SELECT id FROM "sales" WHERE id = ${saleId} FOR UPDATE`;
     const sale = await tx.sale.findUnique({
       where: { id: saleId },
       include: { items: true },

@@ -1,6 +1,6 @@
-# MAKIRE MOTORPARTS
+# JM SPAREPARTS
 
-Professional motorcycle spare parts management system.
+Motorcycle spare parts management system.
 
 A production-quality application for managing motorcycle spare parts, product
 catalog, suppliers, purchasing, receiving, inventory, retail and wholesale
@@ -9,52 +9,69 @@ reporting, notifications and audit history.
 
 ## Status
 
-**Stage 1 — Technical foundation.** The application shell is in place and
-verified: frontend and backend start and build, environment validation works,
-Prisma is configured for PostgreSQL, the `/api/health` endpoint works, central
-error handling, structured logging, security headers, CORS, rate limiting and
-the CSRF foundation are functional.
+**Stage 9 — Production ready.** All 9 stages complete. 218/218 automated
+tests pass. Database integrity verified (51 CHECK constraints, 58 FKs,
+107 indexes). RBAC enforced across all 101 routes. Audit trail covers all
+business mutations. See `docs/stage-9-report.md` for the full report.
 
-**Business modules (products, inventory, sales, purchasing, credit, reports,
-etc.) are intentionally NOT implemented yet.** They will be added in later
-stages.
+## Features
 
-## Project structure
+- **Authentication & RBAC** — Email/password login with httpOnly cookies,
+  CSRF protection, admin/assistant roles, account status management
+- **Product Catalog** — Products with SKUs, OEM/part numbers, brands,
+  categories, motorcycle compatibility mapping
+- **Inventory** — Weighted average costing, stock in/out/adjust, reservations,
+  low-stock notifications, transaction ledger
+- **Purchasing** — Purchase orders, supplier management, receiving with
+  quality inspection, purchase returns
+- **Sales/POS** — Retail & wholesale pricing, split payments (cash/mpesa/
+  credit), price overrides (admin only), void, sale returns
+- **Customer & Supplier Credit** — Credit accounts, payment recording,
+  outstanding balance tracking, statement view
+- **Expenses** — Expense tracking with categories, void capability
+- **Reporting** — Sales, financial, credit, expense reports with date range
+  filtering
+- **Notifications** — Per-user notification inbox with bell polling
+- **Business Settings** — Configurable business name, address, tax rate,
+  currency, contact info
+- **Audit Trail** — 77 action codes covering all mutations
+
+## Project Structure
 
 ```
 .
 ├── client/                  # React + TypeScript + Vite + Tailwind CSS
-│   ├── public/
 │   └── src/
+│       ├── auth/            # AuthContext, ProtectedRoute
 │       ├── components/      # reusable UI + layout components
 │       ├── config/          # client environment configuration
-│       ├── lib/             # API client
-│       ├── pages/           # Home, Login placeholder, 404
+│       ├── lib/             # API client, utilities
+│       ├── pages/           # all application pages (31 routes)
 │       ├── routes/          # router definition
 │       └── types/           # shared API types
 ├── server/                  # Node.js + Express + TypeScript + Prisma
 │   ├── prisma/
-│   │   ├── schema.prisma    # minimal Stage 1 schema (User only)
-│   │   └── migrations/      # initial migration
+│   │   ├── schema.prisma    # 37 models, 29 enums, 51 CHECK constraints
+│   │   └── migrations/      # 10 migrations
 │   └── src/
 │       ├── config/          # env validation (zod)
-│       ├── controllers/     # thin HTTP layer
+│       ├── constants/       # audit actions, enums
+│       ├── controllers/     # thin HTTP layer (19 controllers)
 │       ├── lib/             # prisma client, logger
-│       ├── middleware/      # error, logging, rate limit, CSRF
-│       ├── routes/          # API route mounting
-│       └── utils/           # async handler
-├── docs/                    # design / architecture notes
+│       ├── middleware/      # auth, CSRF, rate limit, error handler
+│       ├── routes/          # API route mounting (21 route groups)
+│       ├── services/        # business logic (21 services)
+│       ├── types/           # request context, shared types
+│       └── utils/           # async handler, validators, document numbers
+├── docs/                    # architecture, ERD, stage reports
 ├── scripts/                 # dev orchestration
-├── package.json             # root convenience commands
-├── .env.example
-├── .editorconfig
-└── .gitignore
+└── package.json             # root convenience commands
 ```
 
 ## Requirements
 
 - Node.js >= 20.19
-- PostgreSQL 14+ (local or hosted)
+- PostgreSQL 14+
 
 ## Setup
 
@@ -87,9 +104,17 @@ npm run prisma:generate          # generate the Prisma client
 npm run prisma:migrate           # create the database and apply migrations (dev)
 # or apply existing migrations to an existing database without prompting:
 npm run prisma:migrate:deploy
+npm run db:seed                  # seed admin + assistant accounts
 ```
 
 `prisma:migrate` uses your `DATABASE_URL` from `server/.env`.
+
+### Default accounts (dev seed)
+
+| Role | Email | Password |
+|------|-------|----------|
+| ADMIN | admin@jmspareparts.local | Makire123 |
+| ASSISTANT | assistant@jmspareparts.local | Shop12345 |
 
 ## Running
 
@@ -122,7 +147,7 @@ Expected response:
   "status": "ok",
   "service": "makire-motorparts-api",
   "database": "up",
-  "timestamp": "2026-08-20T00:00:00.000Z",
+  "timestamp": "2026-08-25T00:00:00.000Z",
   "uptime": 12.34
 }
 ```
@@ -142,6 +167,8 @@ npm start              # starts the compiled server (NODE_ENV=production)
 ```bash
 npm run typecheck
 npm run lint
+npm run test           # 169 unit tests
+npm run test:integration  # 49 integration tests (requires PostgreSQL)
 ```
 
 ### Prisma / database tooling
@@ -153,53 +180,68 @@ npm run prisma:migrate:deploy
 npm run prisma:studio
 ```
 
-## Environment variables
+## Environment Variables
 
 ### Server (`server/.env`)
 
-| Variable         | Required | Description                                                        |
-| ---------------- | -------- | ------------------------------------------------------------------ |
-| `NODE_ENV`       | dev      | `development` \| `test` \| `production`                            |
-| `PORT`           | dev      | API port (default `4000`)                                          |
-| `CLIENT_ORIGIN`  | dev      | Frontend origin allowed by CORS (alias `CLIENT_URL` also accepted) |
-| `DATABASE_URL`   | yes      | PostgreSQL connection string                                       |
-| `JWT_SECRET`     | yes      | Minimum 32 chars; unique random value in production                |
-| `JWT_EXPIRES_IN` | dev      | Access token lifetime (default `8h`)                               |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NODE_ENV` | dev | `development` \| `test` \| `production` |
+| `PORT` | dev | API port (default `4000`) |
+| `CLIENT_ORIGIN` | dev | Frontend origin allowed by CORS (alias `CLIENT_URL` also accepted) |
+| `DATABASE_URL` | yes | PostgreSQL connection string |
+| `JWT_SECRET` | yes | Minimum 32 chars; unique random value in production |
+| `JWT_EXPIRES_IN` | dev | Access token lifetime (default `8h`) |
 
 Invalid configuration fails fast with a clear message on startup. Production
 fails safely if secrets are missing or placeholder values are detected.
 
 ### Client (`client/.env`)
 
-| Variable        | Required | Description                              |
-| --------------- | -------- | ---------------------------------------- |
-| `VITE_API_URL`  | dev      | Backend API base URL (default `/api`)    |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_API_URL` | dev | Backend API base URL (default `/api`) |
 
-## Security foundation (Stage 1)
+## Security
 
-- **Helmet** — hardened security headers.
-- **CORS** — restricted to `CLIENT_ORIGIN`, credentials enabled.
-- **Rate limiting** — global `/api` limiter (300 req/min per IP).
-- **CSRF** — double-submit cookie middleware. State-changing requests must
-  echo the CSRF cookie value in the `X-CSRF-Token` header. In Stage 1 there are
-  no state-changing endpoints yet; Stage 3 will add the token endpoint and
-  exempt the auth endpoints. Requests that fail the CSRF check return `403
-  CSRF_TOKEN_INVALID`.
-- **Request size limit** — JSON bodies limited to 1 MB.
-- **Secure error responses** — no stack traces, environment variables, or
-  database credentials are leaked to clients; raw Prisma/database errors are
-  mapped to safe responses.
-- **Structured logging** — timestamped, leveled, request-ID aware; secrets are
-  never logged.
+- **Helmet** — hardened security headers
+- **CORS** — restricted to `CLIENT_ORIGIN`, credentials enabled
+- **Rate limiting** — global 300 req/min, login 10/15 min per IP
+- **CSRF** — double-submit cookie on all state-changing routes
+- **Authentication** — httpOnly + Secure + SameSite cookies, bcrypt password hashing (cost 12), JWT tokens
+- **RBAC** — admin/assistant roles enforced server-side on all routes
+- **Input validation** — Zod schemas on all endpoints
+- **Error handling** — no stack traces, DB errors, or secrets in responses
+- **Audit logging** — 77 action codes covering all business mutations
+- **Database integrity** — 51 CHECK constraints, 58 foreign keys, FOR UPDATE locks on all financial mutations
+- **Request timeout** — 30s per-request, 15s headers (slow-loris protection)
+- **Production guards** — hard-fail on placeholder JWT_SECRET or HTTP origin
 
-## Development notes
+## Database
+
+- **37 models** covering auth, catalog, inventory, purchasing, sales, credit,
+  expenses, reports, notifications, settings
+- **51 CHECK constraints** enforcing financial non-negativity, inventory
+  non-negativity, quantity positivity, credit limits, and purchase integrity
+- **10 migrations** — no schema drift
+- **107 non-PK indexes** for query performance
+
+See `docs/erd.md` for the entity-relationship diagram.
+
+## Architecture
+
+See `docs/architecture.md` for the full system architecture including
+deployment architecture (Nginx + PM2 + PostgreSQL), backup strategy,
+and monitoring recommendations.
+
+## Development Notes
 
 - Requests carry a request ID (`X-Request-Id` header) generated by the
-  server and propagated to logs and error responses.
-- Environment validation fails fast using zod (see
-  `server/src/config/env.ts`).
-- All IDs use Prisma `cuid()`. Money will be stored as `Decimal` in later
-  stages — never floats.
+  server and propagated to logs and error responses
+- Environment validation fails fast using Zod (see `server/src/config/env.ts`)
+- All IDs use Prisma `cuid()`
+- Money is stored as `Decimal` — never floats
+- Document numbers are generated atomically via `UPDATE ... SET lastNumber = lastNumber + 1`
 
 ## License
 

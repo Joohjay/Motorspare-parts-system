@@ -16,6 +16,9 @@ process.on('uncaughtException', (err: Error) => {
 const app = createApp();
 const server = createServer(app);
 
+server.timeout = 30_000;
+server.headersTimeout = 15_000;
+
 server.listen(config.port, async () => {
   logger.info(
     `makire-motorparts-api listening on http://localhost:${config.port} (${config.env})`,
