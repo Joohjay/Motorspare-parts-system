@@ -31,6 +31,7 @@ export function signSessionToken(userId: string, tokenVersion: number): string {
 export function verifySessionToken(token: string): { userId: string; tokenVersion: number } | null {
   try {
     const payload = jwt.verify(token, config.auth.sessionSecret, {
+      algorithms: ['HS256'],
       issuer: ISSUER,
       audience: AUDIENCE,
     });
