@@ -98,8 +98,8 @@ async function main(): Promise<void> {
   }
 
   console.log('Seed complete');
-  console.log(`  ADMIN:    ${ADMIN_EMAIL} / ${ADMIN_PASSWORD} (dev only)`);
-  console.log(`  ASSISTANT: ${ASSISTANT_EMAIL} / ${ASSISTANT_PASSWORD} (dev only)`);
+  console.log(`  ADMIN:    ${ADMIN_EMAIL} (dev only)`);
+  console.log(`  ASSISTANT: ${ASSISTANT_EMAIL} (dev only)`);
 }
 
 main()
