@@ -96,7 +96,7 @@ export async function login(
     entityId: user.id,
   });
 
-  return { token: signSessionToken(user.id), user: toSafeUser(user) };
+  return { token: signSessionToken(user.id, user.tokenVersion), user: toSafeUser(user) };
 }
 
 /** Returns the currently authenticated user (already loaded fresh by requireAuth). */
@@ -113,15 +113,24 @@ export function getCurrentUser(authUser: {
 
 /**
  * Logs the user out. For a stateless token session this means clearing the
- * httpOnly cookie; the audit trail records the logout while the token was
- * still valid.
+ * httpOnly cookie and incrementing the tokenVersion so the current JWT is
+ * rejected on any subsequent request (even if the cookie is somehow reused).
  */
 export async function logout(ctx: { request: Request }): Promise<void> {
   const cookies = (ctx.request.cookies ?? {}) as Record<string, string | undefined>;
   const token = cookies[config.auth.sessionCookieName];
   let userId: string | null = null;
   if (typeof token === 'string' && token.length > 0) {
-    userId = verifySessionToken(token);
+    const decoded = verifySessionToken(token);
+    if (decoded) userId = decoded.userId;
+  }
+  // Revoke the current token by incrementing tokenVersion so any remaining
+  // JWT with the old version is rejected by the auth middleware.
+  if (userId) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
   }
   await recordAudit({
     request: ctx.request,

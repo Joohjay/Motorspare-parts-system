@@ -41,6 +41,7 @@ interface UserRec {
   role: 'ADMIN' | 'ASSISTANT';
   status: 'ACTIVE' | 'INACTIVE';
   passwordHash: string;
+  tokenVersion: number;
   lastLoginAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -142,6 +143,7 @@ function makeUser(overrides: Partial<UserRec>): UserRec {
     role: 'ASSISTANT',
     status: 'ACTIVE',
     passwordHash: '',
+    tokenVersion: 0,
     lastLoginAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -411,7 +413,7 @@ describe('authentication', () => {
     const { port, close } = await startServer();
     try {
       const jar = new CookieJar();
-      jar.cookies.set('makire_session', signSessionToken(ADMIN_ID));
+      jar.cookies.set('makire_session', signSessionToken(ADMIN_ID, 0));
       const res = await request(port, jar, 'GET', '/api/auth/me');
       assert.equal(res.status, 200);
       assert.equal(res.body.user.id, ADMIN_ID);
@@ -438,7 +440,7 @@ describe('authentication', () => {
     const { port, close } = await startServer();
     try {
       const jar = new CookieJar();
-      jar.cookies.set('makire_session', signSessionToken(ASSISTANT_ID));
+      jar.cookies.set('makire_session', signSessionToken(ASSISTANT_ID, 0));
       const csrf = await getCsrf(port, jar);
       const res = await request(port, jar, 'POST', '/api/auth/logout', undefined, csrf);
       assert.equal(res.status, 204);
@@ -479,7 +481,7 @@ describe('authentication', () => {
     const { port, close } = await startServer();
     try {
       const jar = new CookieJar();
-      jar.cookies.set('makire_session', signSessionToken(ASSISTANT_ID));
+      jar.cookies.set('makire_session', signSessionToken(ASSISTANT_ID, 0));
       const csrf = await getCsrf(port, jar);
       const res = await request(
         port,
@@ -500,7 +502,7 @@ describe('authentication', () => {
     const { port, close } = await startServer();
     try {
       const jar = new CookieJar();
-      jar.cookies.set('makire_session', signSessionToken(ADMIN_ID));
+      jar.cookies.set('makire_session', signSessionToken(ADMIN_ID, 0));
       const csrf = await getCsrf(port, jar);
       const res = await request(
         port,
@@ -734,7 +736,7 @@ describe('account administration', () => {
     const { port, close } = await startServer();
     try {
       const jar = new CookieJar();
-      jar.cookies.set('makire_session', signSessionToken(ADMIN_ID));
+      jar.cookies.set('makire_session', signSessionToken(ADMIN_ID, 0));
       const csrf = await getCsrf(port, jar);
 
       // Only one active admin exists (admin-2 is deactivated first).
@@ -760,7 +762,7 @@ describe('account administration', () => {
     const { port, close } = await startServer();
     try {
       const jar = new CookieJar();
-      jar.cookies.set('makire_session', signSessionToken(ADMIN_ID));
+      jar.cookies.set('makire_session', signSessionToken(ADMIN_ID, 0));
       const csrf = await getCsrf(port, jar);
       const res = await request(
         port,
@@ -781,7 +783,7 @@ describe('account administration', () => {
     const { port, close } = await startServer();
     try {
       const jar = new CookieJar();
-      jar.cookies.set('makire_session', signSessionToken(ADMIN_ID));
+      jar.cookies.set('makire_session', signSessionToken(ADMIN_ID, 0));
       const csrf = await getCsrf(port, jar);
       const res = await request(
         port,
@@ -803,7 +805,7 @@ describe('account administration', () => {
     const { port, close } = await startServer();
     try {
       const jar = new CookieJar();
-      jar.cookies.set('makire_session', signSessionToken(ASSISTANT_ID));
+      jar.cookies.set('makire_session', signSessionToken(ASSISTANT_ID, 0));
       usersById[ASSISTANT_ID]!.status = 'INACTIVE';
       const res = await request(port, jar, 'GET', '/api/auth/me');
       assert.equal(res.status, 403);

@@ -8,13 +8,14 @@ const ISSUER = 'makire-motorparts';
 const AUDIENCE = 'makire-motorparts-web';
 
 /**
- * Signs a stateless session token for the given user. Only the user id is
- * carried in the token; role and status are always re-read from the database
- * on every authenticated request so a deactivated or demoted account loses
- * access immediately.
+ * Signs a stateless session token for the given user. The token carries the
+ * user id and a tokenVersion claim. On every authenticated request the
+ * middleware re-reads both the user's current status/role and tokenVersion
+ * from the database so a revoked token (version mismatch) is rejected
+ * immediately.
  */
-export function signSessionToken(userId: string): string {
-  return jwt.sign({}, config.auth.sessionSecret, {
+export function signSessionToken(userId: string, tokenVersion: number): string {
+  return jwt.sign({ v: tokenVersion } as object, config.auth.sessionSecret, {
     subject: userId,
     expiresIn: Math.floor(config.auth.sessionTtlMs / 1000),
     issuer: ISSUER,
@@ -23,17 +24,19 @@ export function signSessionToken(userId: string): string {
 }
 
 /**
- * Verifies a session token. Returns the user id, or null when the token is
- * missing, malformed, expired, or fails signature/issuer/audience checks.
+ * Verifies a session token. Returns { userId, tokenVersion } or null when
+ * the token is missing, malformed, expired, or fails signature/issuer/audience
+ * checks.
  */
-export function verifySessionToken(token: string): string | null {
+export function verifySessionToken(token: string): { userId: string; tokenVersion: number } | null {
   try {
     const payload = jwt.verify(token, config.auth.sessionSecret, {
       issuer: ISSUER,
       audience: AUDIENCE,
     });
     if (typeof payload === 'string' || !payload.sub) return null;
-    return payload.sub;
+    const v = typeof payload.v === 'number' ? payload.v : 0;
+    return { userId: payload.sub, tokenVersion: v };
   } catch {
     return null;
   }

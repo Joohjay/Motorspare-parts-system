@@ -31,21 +31,25 @@ function sessionTokenFrom(req: Request): string | null {
 }
 
 /**
- * Loads the user from the database for a session token. The role and status are
- * always read from the server-side record — never from the token or the client —
- * so deactivated accounts are locked out on their very next request.
+ * Loads the user from the database for a session token. The role, status, and
+ * tokenVersion are always re-read from the server-side record — never from
+ * the token or the client — so deactivated accounts, demoted users, and
+ * revoked tokens (version mismatch) are locked out on their very next request.
  */
 async function loadAuthUser(token: string): Promise<AuthUser> {
-  const userId = verifySessionToken(token);
-  if (!userId) {
+  const decoded = verifySessionToken(token);
+  if (!decoded) {
     throw new ApiError(401, 'AUTHENTICATION_REQUIRED', 'Authentication required');
   }
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
   if (!user) {
     throw new ApiError(401, 'AUTHENTICATION_REQUIRED', 'Authentication required');
   }
   if (user.status !== UserStatus.ACTIVE) {
     throw new ApiError(403, 'ACCOUNT_INACTIVE', 'Account is inactive');
+  }
+  if (user.tokenVersion !== decoded.tokenVersion) {
+    throw new ApiError(401, 'AUTHENTICATION_REQUIRED', 'Authentication required');
   }
   return {
     id: user.id,

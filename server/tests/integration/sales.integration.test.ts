@@ -163,6 +163,7 @@ before(async () => {
       fullName: 'Sales Integration',
       passwordHash: 'x',
       role: 'ADMIN',
+      tokenVersion: 0,
     },
     update: {},
   });

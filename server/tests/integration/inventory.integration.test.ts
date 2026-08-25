@@ -75,6 +75,7 @@ before(async () => {
       passwordHash: 'not-used',
       role: 'ADMIN',
       status: 'ACTIVE',
+      tokenVersion: 0,
     },
   });
   adminUserId = admin.id;

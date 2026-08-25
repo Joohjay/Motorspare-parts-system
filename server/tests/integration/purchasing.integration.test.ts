@@ -121,6 +121,7 @@ before(async () => {
       passwordHash: 'not-used',
       role: 'ADMIN',
       status: 'ACTIVE',
+      tokenVersion: 0,
     },
   });
   actor.id = admin.id;

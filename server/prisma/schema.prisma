@@ -233,6 +233,7 @@ model User {
   passwordHash String
   role         UserRole   @default(ADMIN)
   status       UserStatus @default(ACTIVE)
+  tokenVersion Int        @default(0)
   lastLoginAt  DateTime?
   createdById  String?
   createdBy    User?      @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)

@@ -55,6 +55,7 @@ function seedFixtures(): void {
       role: 'ADMIN',
       status: 'ACTIVE',
       passwordHash: '',
+      tokenVersion: 0,
       lastLoginAt: null,
       createdAt: new Date('2026-01-01T00:00:00Z'),
       updatedAt: new Date('2026-01-01T00:00:00Z'),
@@ -66,6 +67,7 @@ function seedFixtures(): void {
       role: 'ASSISTANT',
       status: 'ACTIVE',
       passwordHash: '',
+      tokenVersion: 0,
       lastLoginAt: null,
       createdAt: new Date('2026-01-01T00:00:00Z'),
       updatedAt: new Date('2026-01-01T00:00:00Z'),
@@ -433,13 +435,13 @@ async function getCsrf(port: number, jar: CookieJar): Promise<string> {
 
 function adminJar(): CookieJar {
   const jar = new CookieJar();
-  jar.cookies.set('makire_session', signSessionToken(ADMIN_ID));
+  jar.cookies.set('makire_session', signSessionToken(ADMIN_ID, 0));
   return jar;
 }
 
 function assistantJar(): CookieJar {
   const jar = new CookieJar();
-  jar.cookies.set('makire_session', signSessionToken(ASSISTANT_ID));
+  jar.cookies.set('makire_session', signSessionToken(ASSISTANT_ID, 0));
   return jar;
 }
 

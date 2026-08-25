@@ -32,6 +32,7 @@ interface UserRec {
   role: 'ADMIN' | 'ASSISTANT';
   status: 'ACTIVE' | 'INACTIVE';
   passwordHash: string;
+  tokenVersion: number;
   lastLoginAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -696,13 +697,13 @@ async function getCsrf(port: number, jar: CookieJar): Promise<string> {
 
 function adminJar(): CookieJar {
   const jar = new CookieJar();
-  jar.cookies.set('makire_session', signSessionToken(ADMIN_ID));
+  jar.cookies.set('makire_session', signSessionToken(ADMIN_ID, 0));
   return jar;
 }
 
 function assistantJar(): CookieJar {
   const jar = new CookieJar();
-  jar.cookies.set('makire_session', signSessionToken(ASSISTANT_ID));
+  jar.cookies.set('makire_session', signSessionToken(ASSISTANT_ID, 0));
   return jar;
 }
 
@@ -723,6 +724,7 @@ function makeUser(id: string, role: 'ADMIN' | 'ASSISTANT'): UserRec {
     role,
     status: 'ACTIVE',
     passwordHash: '',
+    tokenVersion: 0,
     lastLoginAt: null,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
