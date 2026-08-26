@@ -4,10 +4,17 @@ import { config } from '../config/env.js';
 
 // Centralized Prisma client. Database access is only performed through here
 // (services/repositories), never scattered across controllers or routes.
+//
+// Connection pool tuned for high-concurrency (20k+ simultaneous connections
+// behind a load balancer). At 4 worker processes with 10 connections each we
+// handle 40 concurrent DB operations without queuing.
 const client = new PrismaClient({
   log: config.isProduction
     ? [{ level: 'warn', emit: 'event' }, { level: 'error', emit: 'event' }]
     : [],
+  datasourceUrl: config.isProduction
+    ? `${process.env.DATABASE_URL}?connection_limit=10&pool_timeout=30`
+    : undefined,
 });
 
 // Test seam: automated tests replace the real client with an in-memory mock by

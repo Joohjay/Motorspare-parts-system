@@ -27,12 +27,15 @@ function failClosed(limiter: Limiter): Limiter {
   }) as unknown as Limiter;
 }
 
-// Global limiter applied to the whole /api surface. Prevents basic
-// abuse/brute-force against any endpoint until per-route limiters are added.
+const ipKey = (req: Request): string =>
+  ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? '127.0.0.1');
+
+// ── API rate limits (tight) ───────────────────────────────────────────
+// Global: 200 req/min per IP for all /api endpoints (down from 300).
 export const globalLimiter = failClosed(
   rateLimit({
     windowMs: 60_000,
-    max: 300,
+    max: 200,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -41,22 +44,34 @@ export const globalLimiter = failClosed(
         message: 'Too many requests. Please try again later.',
       },
     },
-    keyGenerator: (req: Request) =>
-      ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? '127.0.0.1'),
+    keyGenerator: ipKey,
     handler: (_req: Request, _res: Response) => {
-      const ip = _req.ip ?? 'unknown';
-      recordRateLimitHit(ip, _req.path);
+      recordRateLimitHit(_req.ip ?? 'unknown', _req.path);
     },
   }),
 );
 
-const ipKey = (req: Request): string =>
-  ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? '127.0.0.1');
+// ── Static/read-only endpoints (generous) ─────────────────────────────
+// Health checks, dashboards — need high throughput for uptime monitors.
+export const staticLimiter = failClosed(
+  rateLimit({
+    windowMs: 60_000,
+    max: 1000,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      error: {
+        code: 'RATE_LIMITED',
+        message: 'Too many requests. Please try again later.',
+      },
+    },
+    keyGenerator: ipKey,
+  }),
+);
 
-// Authentication-specific limiter for login attempts. Successes are not
-// counted so legitimate users are never locked out; repeated failures
-// (brute-force) are throttled per IP. Created per app instance so tests can
-// exercise it with a fresh counter.
+// ── Auth-specific limits (very tight) ─────────────────────────────────
+
+// Login: 15 attempts per 15 min per IP. Successes don't count.
 export function createAuthLoginLimiter(options?: {
   windowMs?: number;
   max?: number;
@@ -82,8 +97,7 @@ export function createAuthLoginLimiter(options?: {
   );
 }
 
-// Password-change limiter: 5 attempts per 15 minutes per IP.
-// Protects against brute-force on the change-password and admin-reset endpoints.
+// Password-change: 5 attempts per 15 minutes per IP.
 export function createPasswordChangeLimiter(options?: {
   windowMs?: number;
   max?: number;
@@ -105,8 +119,7 @@ export function createPasswordChangeLimiter(options?: {
   );
 }
 
-// Password-reset limiter: 5 requests per 15 minutes per IP.
-// Prevents email flooding (forgot-password) and token brute-force (reset-password).
+// Password-reset: 5 requests per 15 minutes per IP.
 export function createPasswordResetLimiter(options?: {
   windowMs?: number;
   max?: number;
