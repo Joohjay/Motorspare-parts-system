@@ -17,6 +17,9 @@ logs/
 *.log
 npm-debug.log*
 
+# Backups
+backups/
+
 # Test coverage
 coverage/
 
