@@ -1,18 +1,55 @@
 @echo off
-REM ============================================
+REM ====================================================================
 REM  JM SPAREPARTS — Database Backup (Windows)
-REM ============================================
-REM  Usage:  backup.bat
-REM  Creates a compressed PostgreSQL backup with
-REM  timestamp. Cleans up backups older than 30 days.
+REM ====================================================================
 REM
-REM  Configure via environment variables or edit
-REM  the defaults below.
-REM ============================================
+REM  WHAT THIS SCRIPT DOES:
+REM    Creates a compressed PostgreSQL backup of the entire database.
+REM    The backup is saved as a .dump file with a timestamp in the
+REM    filename (e.g., makire_motorparts_20260826_020000.dump).
+REM
+REM  HOW IT FITS INTO THE BACKUP SYSTEM:
+REM    This is the CORE backup script. It runs:
+REM      1. Automatically at 2:00 AM daily (via Windows Task Scheduler)
+REM      2. Manually when you run it: scripts\backup.bat
+REM      3. Before deployments or database changes (run manually)
+REM
+REM    After creating the backup, it also:
+REM      - Cleans up backups older than 30 days (local)
+REM      - Copies the backup to external drive E: (if connected)
+REM
+REM  BACKUP FLOW:
+REM    backup.bat
+REM      ├── Finds pg_dump.exe (PostgreSQL 14-18 on Windows)
+REM      ├── Runs: pg_dump -Fc (compressed format)
+REM      ├── Saves to: ..\backups\makire_motorparts_YYYYMMDD_HHMMSS.dump
+REM      ├── Deletes .dump files older than 30 days
+REM      └── If E: drive connected → copies to E:\jm-backups\
+REM
+REM  PREREQUISITES:
+REM    - PostgreSQL installed on Windows (provides pg_dump.exe)
+REM    - Default credentials: user=makire, password=makire, DB=makire_motorparts
+REM    - Override with env vars: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PWD
+REM
+REM  RELATED SCRIPTS:
+REM    restore.bat              — Restore a backup (never touches production)
+REM    backup-to-external.ps1   — Manually sync backups to external drive
+REM    setup-scheduled-backup.ps1 — Register daily Task Scheduler job
+REM    backup-notify.ps1        — Popup when external drive is plugged in
+REM    setup-all.ps1            — One-time setup on a new PC
+REM
+REM  USAGE:
+REM    scripts\backup.bat                          (default settings)
+REM    set DB_PWD=mypassword && scripts\backup.bat  (custom password)
+REM    set PG_BIN=C:\PostgreSQL\17\bin && scripts\backup.bat  (custom PG path)
+REM
+REM ====================================================================
 
 setlocal enabledelayedexpansion
 
 REM ── Configuration (override with env vars) ──────
+REM  These are the database connection defaults. Change the env vars
+REM  above this script if your PostgreSQL uses different credentials.
 if "%DB_HOST%"=="" set DB_HOST=localhost
 if "%DB_PORT%"=="" set DB_PORT=5432
 if "%DB_NAME%"=="" set DB_NAME=makire_motorparts
@@ -21,8 +58,9 @@ if "%BACKUP_DIR%"=="" set BACKUP_DIR=%~dp0..\backups
 if "%PG_BIN%"=="" set PG_BIN=
 
 REM ── Find pg_dump.exe ───────────────────────────
-REM  Checks common PostgreSQL install paths on Windows.
-REM  Set PG_BIN env var to skip auto-detection.
+REM  Auto-detects PostgreSQL installation by checking common Windows
+REM  install paths for versions 14 through 18. If not found, checks
+REM  the system PATH. Set PG_BIN env var to skip auto-detection.
 
 if "%PG_BIN%"=="" (
     REM Check standard paths (PostgreSQL 14-18)
@@ -52,15 +90,22 @@ if "%PG_BIN%"=="" (
 echo Using pg_dump: %PG_BIN%\pg_dump.exe
 
 REM ── Timestamp ──────────────────────────────────
+REM  Creates a unique timestamp for the backup filename.
+REM  Format: YYYYMMDD_HHMMSS (e.g., 20260826_020000)
 for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value 2^>nul') do set DT=%%I
 set TIMESTAMP=%DT:~0,4%%DT:~4,2%%DT:~6,2%_%DT:~8,2%%DT:~10,2%%DT:~12,2%
 
 REM ── Create backup directory ─────────────────────
+REM  Creates the backups folder if it doesn't exist.
+REM  Default location: ..\backups\ (relative to this script)
 if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%"
 
 set BACKUP_FILE=%BACKUP_DIR%\%DB_NAME%_%TIMESTAMP%.dump
 
 REM ── Run pg_dump ─────────────────────────────────
+REM  Creates a compressed backup using PostgreSQL's custom format (-Fc).
+REM  This format is compact, supports compression, and can be restored
+REM  with pg_restore. The -f flag specifies the output file.
 echo.
 echo Backing up %DB_NAME% to:
 echo   %BACKUP_FILE%
@@ -91,6 +136,8 @@ echo Backup complete: %BACKUP_FILE%
 echo Size: %SIZE_MB% MB
 
 REM ── Cleanup old backups (older than 30 days) ────
+REM  Automatically deletes .dump files older than 30 days to prevent
+REM  disk space from filling up. Uses Windows forfiles command.
 echo.
 echo Cleaning up backups older than 30 days...
 set CLEANED=0
@@ -104,6 +151,11 @@ for %%F in ("%BACKUP_DIR%\%DB_NAME%_*.dump") do set /a COUNT+=1
 echo Backups on disk: %COUNT%
 
 REM ── Sync to external drive (if connected) ──────
+REM  Checks if external drive E: is plugged in. If yes, copies the
+REM  new backup to E:\jm-backups\. If not, skips silently.
+REM  This provides off-site backup protection.
+REM
+REM  To use a different drive letter, set: set EXT_DRIVE=F:
 set EXT_DRIVE=E:
 if exist "%EXT_DRIVE%\" (
     echo.
