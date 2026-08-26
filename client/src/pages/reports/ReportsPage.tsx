@@ -118,7 +118,7 @@ export function ReportsPage(): ReactElement {
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <StatCard label="Sales" value={String(financial.sales.saleCount)} />
             <StatCard label="Revenue" value={formatCurrency(financial.sales.revenue)} />
-            <StatCard label="COGS" value={formatCurrency(financial.sales.cogs)} />
+            <StatCard label="Product cost" value={formatCurrency(financial.sales.cogs)} />
             <StatCard label="Gross profit" value={formatCurrency(financial.sales.grossProfit)} />
             <StatCard
               label="Net operating result"

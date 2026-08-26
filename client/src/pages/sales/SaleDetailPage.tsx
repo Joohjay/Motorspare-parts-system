@@ -269,7 +269,7 @@ export function SaleDetailPage(): ReactElement {
             )}
             {isAdmin && (
               <p className="mt-3 text-xs text-slate-400">
-                COGS {formatCurrency(sale.cogs ?? '0')} · Gross profit{' '}
+                Product cost {formatCurrency(sale.cogs ?? '0')} · Gross profit{' '}
                 {formatCurrency(sale.grossProfit ?? '0')}
               </p>
             )}
