@@ -8,6 +8,7 @@ import { hashPassword, validatePassword, verifyPassword, getDummyHash } from '..
 import { generateResetToken, hashResetToken, signSessionToken, verifySessionToken } from '../utils/tokens.js';
 import { config } from '../config/env.js';
 import { logger } from '../lib/logger.js';
+import { recordLoginFailure, recordPasswordResetRequest } from '../middleware/securityMonitor.js';
 
 export interface SafeUser {
   id: string;
@@ -67,6 +68,7 @@ export async function login(
       entityType: 'user',
       entityId: 'unknown',
     });
+    recordLoginFailure(ctx.request.ip ?? 'unknown', email);
     throw new ApiError(401, 'INVALID_CREDENTIALS', LOGIN_FAILED);
   }
 
@@ -80,6 +82,7 @@ export async function login(
       entityType: 'user',
       entityId: user.id,
     });
+    recordLoginFailure(ctx.request.ip ?? 'unknown', email);
     throw new ApiError(401, 'INVALID_CREDENTIALS', LOGIN_FAILED);
   }
 
@@ -152,6 +155,8 @@ export async function requestPasswordReset(
   ctx: { request: Request },
 ): Promise<void> {
   const email = input.email.trim().toLowerCase();
+  const ip = ctx.request.ip ?? 'unknown';
+  recordPasswordResetRequest(ip, email);
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (user) {

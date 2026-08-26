@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 
 import prisma from '../lib/prisma.js';
+import { config } from '../config/env.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 export const getHealth = asyncHandler(async (_req: Request, res: Response) => {
@@ -11,6 +12,11 @@ export const getHealth = asyncHandler(async (_req: Request, res: Response) => {
   } catch {
     // Database reachability is reported in the response body; the API itself
     // stays up so monitoring can see the degraded state.
+  }
+
+  if (config.isProduction) {
+    res.json({ status: 'ok' });
+    return;
   }
 
   res.json({

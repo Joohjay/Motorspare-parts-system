@@ -6,6 +6,7 @@ import rateLimit, {
 
 import { config } from '../config/env.js';
 import { logger } from '../lib/logger.js';
+import { recordRateLimitHit } from './securityMonitor.js';
 
 type Limiter = RateLimitRequestHandler;
 
@@ -42,6 +43,10 @@ export const globalLimiter = failClosed(
     },
     keyGenerator: (req: Request) =>
       ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? '127.0.0.1'),
+    handler: (_req: Request, _res: Response) => {
+      const ip = _req.ip ?? 'unknown';
+      recordRateLimitHit(ip, _req.path);
+    },
   }),
 );
 
@@ -70,6 +75,9 @@ export function createAuthLoginLimiter(options?: {
         },
       },
       keyGenerator: ipKey,
+      handler: (_req: Request, _res: Response) => {
+        recordRateLimitHit(_req.ip ?? 'unknown', '/api/auth/login');
+      },
     }),
   );
 }

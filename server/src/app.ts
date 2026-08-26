@@ -40,8 +40,22 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
 
   app.use(
     helmet({
-      contentSecurityPolicy: config.isProduction ? undefined : false,
+      contentSecurityPolicy: config.isProduction
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              imgSrc: ["'self'", 'data:'],
+              fontSrc: ["'self'"],
+              connectSrc: ["'self'"],
+              frameAncestors: ["'none'"],
+              formAction: ["'self'"],
+            },
+          }
+        : false,
       crossOriginEmbedderPolicy: false,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     }),
   );
   app.use(
