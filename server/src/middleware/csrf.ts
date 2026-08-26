@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 import type { NextFunction, Request, Response } from 'express';
 
@@ -59,9 +59,16 @@ export function csrfProtection(
   }
 
   const cookieToken = cookies[CSRF_COOKIE_NAME];
-  const headerToken = req.headers['x-csrf-token'];
+  const headerToken = Array.isArray(req.headers['x-csrf-token'])
+    ? req.headers['x-csrf-token'][0]
+    : req.headers['x-csrf-token'];
 
-  if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+  if (
+    !cookieToken ||
+    !headerToken ||
+    cookieToken.length !== headerToken.length ||
+    !timingSafeEqual(Buffer.from(cookieToken), Buffer.from(headerToken))
+  ) {
     next(
       new ApiError(
         403,

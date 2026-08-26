@@ -1,8 +1,11 @@
 import { Router } from 'express';
 
 import {
+  adminResetPassword,
+  changeOwnPassword,
   forgotPassword,
   getCsrfToken,
+  listUsers,
   login,
   logout,
   me,
@@ -25,6 +28,13 @@ router.get('/me', requireAuth, me);
 
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+
+// Password management
+router.patch('/change-password', requireAuth, changeOwnPassword);
+router.patch('/users/:id/password', requireAdmin, adminResetPassword);
+
+// User list (admin only — for password reset UI)
+router.get('/users', requireAdmin, listUsers);
 
 // Account status management (ADMIN only), protected by the final-admin guard.
 router.patch('/users/:id/status', requireAdmin, updateAccountStatus);

@@ -8,6 +8,7 @@ import { ApiError } from '../middleware/error.js';
 import { config } from '../config/env.js';
 import { UserStatus } from '@prisma/client';
 import * as authService from '../services/authService.js';
+import prisma from '../lib/prisma.js';
 
 export function sessionCookieOptions() {
   return {
@@ -87,6 +88,54 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
   res.json({
     message: 'Your password has been reset. You can now sign in.',
   });
+});
+
+const changeOwnPasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(1024),
+  newPassword: z.string().min(1).max(1024),
+});
+
+const adminResetPasswordSchema = z.object({
+  newPassword: z.string().min(1).max(1024),
+});
+
+export const listUsers = asyncHandler(async (_req: Request, res: Response) => {
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      role: true,
+      status: true,
+    },
+    orderBy: { fullName: 'asc' },
+  });
+  res.json({ users });
+});
+
+export const changeOwnPassword = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.authUser) {
+    throw new ApiError(401, 'AUTHENTICATION_REQUIRED', 'Authentication required');
+  }
+  const body = changeOwnPasswordSchema.parse(req.body);
+  await authService.changeOwnPassword(body, {
+    request: req,
+    actor: { id: req.authUser.id },
+  });
+  res.json({ message: 'Password changed successfully.' });
+});
+
+export const adminResetPassword = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.authUser) {
+    throw new ApiError(401, 'AUTHENTICATION_REQUIRED', 'Authentication required');
+  }
+  const { id } = req.params as { id: string };
+  const body = adminResetPasswordSchema.parse(req.body);
+  await authService.adminResetPassword(id, body, {
+    request: req,
+    actor: { id: req.authUser.id },
+  });
+  res.json({ message: 'Password has been reset.' });
 });
 
 export const updateAccountStatus = asyncHandler(async (req: Request, res: Response) => {

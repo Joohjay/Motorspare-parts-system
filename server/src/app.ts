@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import { config } from './config/env.js';
 import { csrfProtection } from './middleware/csrf.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
-import { createAuthLoginLimiter, createPasswordResetLimiter, globalLimiter } from './middleware/rateLimit.js';
+import { createAuthLoginLimiter, createPasswordChangeLimiter, createPasswordResetLimiter, globalLimiter } from './middleware/rateLimit.js';
 import { requestContext, requestLogger } from './middleware/requestLogger.js';
 import apiRouter from './routes/index.js';
 
@@ -16,6 +16,10 @@ export interface CreateAppOptions {
     max?: number;
   };
   passwordResetRateLimit?: {
+    windowMs?: number;
+    max?: number;
+  };
+  passwordChangeRateLimit?: {
     windowMs?: number;
     max?: number;
   };
@@ -55,6 +59,8 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.use('/api/auth/login', createAuthLoginLimiter(options.loginRateLimit));
   app.use('/api/auth/forgot-password', createPasswordResetLimiter(options.passwordResetRateLimit));
   app.use('/api/auth/reset-password', createPasswordResetLimiter(options.passwordResetRateLimit));
+  app.use('/api/auth/change-password', createPasswordChangeLimiter(options.passwordChangeRateLimit));
+  app.use('/api/auth/users', createPasswordChangeLimiter(options.passwordChangeRateLimit));
   app.use('/api', apiRouter);
 
   app.use(notFoundHandler);

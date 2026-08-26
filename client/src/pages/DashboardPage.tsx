@@ -88,11 +88,21 @@ export function DashboardPage(): ReactElement {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Sales today" value={`${dashboard.todaySales.saleCount}`} sub={`Revenue ${formatMoney(dashboard.todaySales.revenue)}`} accent />
         <StatCard label="Average sale today" value={formatMoney(dashboard.todaySales.averageSaleValue)} />
-        <StatCard
-          label="Low / out of stock"
-          value={`${dashboard.inventoryAlerts.lowStockCount} / ${dashboard.inventoryAlerts.outOfStockCount}`}
-          sub="products need attention"
-        />
+        <div className={`rounded-lg border p-4 ${dashboard.inventoryAlerts.outOfStockCount > 0 ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}>
+          <div className="flex items-center gap-2">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Low / out of stock</p>
+            {dashboard.inventoryAlerts.outOfStockCount > 0 && (
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xl font-semibold text-slate-900">
+            {dashboard.inventoryAlerts.lowStockCount} / {dashboard.inventoryAlerts.outOfStockCount}
+          </p>
+          <p className="mt-0.5 text-xs text-slate-500">products need attention</p>
+        </div>
         <StatCard
           label="Customer credit outstanding"
           value={formatMoney(dashboard.creditSummary.totalOutstanding)}

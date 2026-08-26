@@ -257,6 +257,77 @@ export async function resetPassword(
   });
 }
 
+/**
+ * Changes the authenticated user's own password. Requires the current password
+ * for verification. On success the password hash is updated.
+ */
+export async function changeOwnPassword(
+  input: { currentPassword: string; newPassword: string },
+  ctx: { request: Request; actor: { id: string } },
+): Promise<void> {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: ctx.actor.id } });
+
+  const currentOk = await verifyPassword(input.currentPassword, user.passwordHash);
+  if (!currentOk) {
+    throw new ApiError(400, 'INVALID_CURRENT_PASSWORD', 'Current password is incorrect.');
+  }
+
+  const policyError = validatePassword(input.newPassword, user.email);
+  if (policyError) {
+    throw new ApiError(400, 'INVALID_PASSWORD', policyError);
+  }
+
+  const newHash = await hashPassword(input.newPassword);
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } });
+
+  await recordAudit({
+    request: ctx.request,
+    userId: user.id,
+    action: 'PASSWORD_CHANGED',
+    entityType: 'user',
+    entityId: user.id,
+  });
+}
+
+/**
+ * Admin-only: reset any user's password without knowing the current password.
+ * The target user's tokenVersion is incremented to invalidate all existing
+ * sessions so they must re-login with the new password.
+ */
+export async function adminResetPassword(
+  targetUserId: string,
+  input: { newPassword: string },
+  ctx: { request: Request; actor: { id: string } },
+): Promise<void> {
+  const target = await prisma.user.findUnique({ where: { id: targetUserId } });
+  if (!target) {
+    throw ApiError.notFound('User not found');
+  }
+  if (target.id === ctx.actor.id) {
+    throw new ApiError(400, 'USE_CHANGE_PASSWORD', 'Use the change-password form to update your own password.');
+  }
+
+  const policyError = validatePassword(input.newPassword, target.email);
+  if (policyError) {
+    throw new ApiError(400, 'INVALID_PASSWORD', policyError);
+  }
+
+  const newHash = await hashPassword(input.newPassword);
+  await prisma.user.update({
+    where: { id: targetUserId },
+    data: { passwordHash: newHash, tokenVersion: { increment: 1 } },
+  });
+
+  await recordAudit({
+    request: ctx.request,
+    userId: ctx.actor.id,
+    action: 'PASSWORD_RESET_BY_ADMIN',
+    entityType: 'user',
+    entityId: targetUserId,
+    afterState: { resetBy: ctx.actor.id },
+  });
+}
+
 export type AccountStatusInput = 'ACTIVE' | 'INACTIVE';
 
 /**

@@ -43,4 +43,22 @@ export const authApi = {
       body: JSON.stringify({ status }),
     });
   },
+
+  changeOwnPassword(currentPassword: string, newPassword: string): Promise<MessageResponse> {
+    return apiRequest<MessageResponse>('/auth/change-password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  },
+
+  adminResetPassword(userId: string, newPassword: string): Promise<MessageResponse> {
+    return apiRequest<MessageResponse>(`/auth/users/${userId}/password`, {
+      method: 'PATCH',
+      body: JSON.stringify({ newPassword }),
+    });
+  },
+
+  listUsers(): Promise<{ users: Array<{ id: string; fullName: string; email: string; role: string; status: string }> }> {
+    return apiRequest<{ users: Array<{ id: string; fullName: string; email: string; role: string; status: string }> }>('/auth/users');
+  },
 };
