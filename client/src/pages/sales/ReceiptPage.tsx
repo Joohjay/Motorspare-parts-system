@@ -37,7 +37,6 @@ export function ReceiptPage(): ReactElement {
 
   const { business, sale, customerCreditOutstanding } = receipt;
   const businessName = business['business.name'] ?? 'JM SPAREPARTS';
-  const currency = business['business.currency'] ?? 'TZS';
 
   return (
     <div className="space-y-4">
@@ -110,7 +109,7 @@ export function ReceiptPage(): ReactElement {
             </div>
           ) : null}
           <div className="flex justify-between border-t border-slate-300 pt-1 text-sm font-bold">
-            <dt>Total ({currency})</dt>
+            <dt>Total</dt>
             <dd className="tabular-nums">{formatCurrency(sale.totalAmount)}</dd>
           </div>
           {sale.payments.map((payment) => (

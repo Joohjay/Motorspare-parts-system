@@ -14,8 +14,11 @@ interface NavItem {
 
 const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
   {
-    heading: 'Overview',
-    items: [{ to: '/dashboard', label: 'Dashboard', end: true }],
+    heading: 'Quick actions',
+    items: [
+      { to: '/dashboard', label: 'Dashboard', end: true },
+      { to: '/pos', label: 'Point of sale', end: true },
+    ],
   },
   {
     heading: 'Catalog',
@@ -46,7 +49,6 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
   {
     heading: 'Sales',
     items: [
-      { to: '/pos', label: 'Point of sale', end: true },
       { to: '/sales', label: 'Sales history', end: true },
       { to: '/sales/returns', label: 'Returns', end: true },
     ],

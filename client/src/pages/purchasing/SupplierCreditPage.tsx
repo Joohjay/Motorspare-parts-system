@@ -25,9 +25,8 @@ import type { Supplier, SupplierCreditAccount } from '@/types/api';
 
 function formatMoney(value: string | number): string {
   const num = Number(value);
-  return Number.isFinite(num)
-    ? num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : String(value);
+  if (!Number.isFinite(num)) return String(value);
+  return `TZS ${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatDateTime(value: string | null | undefined): string {

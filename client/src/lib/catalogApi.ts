@@ -236,5 +236,6 @@ export const identifierTypes: IdentifierType[] = [
 
 export function formatPrice(value: number | string): string {
   const num = Number(value);
-  return Number.isFinite(num) ? num.toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(value);
+  if (!Number.isFinite(num)) return String(value);
+  return `TZS ${num.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }

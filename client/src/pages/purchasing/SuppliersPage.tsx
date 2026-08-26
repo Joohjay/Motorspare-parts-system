@@ -269,10 +269,10 @@ export function SuppliersPage() {
                     </td>
                     <td className="px-4 py-3 tabular-nums text-slate-600">
                       {s.creditAccount && s.creditAccount.status === 'ACTIVE'
-                        ? Number(s.creditAccount.outstandingBalance).toLocaleString(undefined, {
+                        ? `TZS ${Number(s.creditAccount.outstandingBalance).toLocaleString(undefined, {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
-                          })
+                          })}`
                         : '—'}
                     </td>
                     <td className="px-4 py-3 text-right">

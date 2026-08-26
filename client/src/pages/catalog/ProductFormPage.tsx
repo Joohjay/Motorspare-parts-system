@@ -386,7 +386,7 @@ export function ProductFormPage() {
                 ))}
               </SelectInput>
             </Field>
-            <Field label="Retail price (KSh)" htmlFor="product-retail" required>
+            <Field label="Retail price (TZS)" htmlFor="product-retail" required>
               <TextInput
                 id="product-retail"
                 type="number"
@@ -397,7 +397,7 @@ export function ProductFormPage() {
                 onChange={(e) => setRetailPrice(e.target.value)}
               />
             </Field>
-            <Field label="Wholesale price (KSh)" htmlFor="product-wholesale" required>
+            <Field label="Wholesale price (TZS)" htmlFor="product-wholesale" required>
               <TextInput
                 id="product-wholesale"
                 type="number"

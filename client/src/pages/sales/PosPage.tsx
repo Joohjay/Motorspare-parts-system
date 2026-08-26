@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -49,6 +50,7 @@ const money = (value: number): string => value.toFixed(2);
 export function PosPage(): ReactElement {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
+  const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<InventoryListItem[]>([]);
@@ -199,11 +201,30 @@ export function PosPage(): ReactElement {
   if (completedSale) {
     return (
       <div className="mx-auto max-w-xl space-y-6 p-6 text-center">
-        <h1 className="text-2xl font-semibold text-slate-900">Sale completed</h1>
-        <p className="text-sm text-slate-600">
-          {completedSale.saleNumber} recorded for {formatCurrency(completedSale.totalAmount)}.
-        </p>
-        <Button onClick={() => setCompletedSale(null)}>New sale</Button>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6">
+          <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+          <h1 className="mt-3 text-2xl font-semibold text-slate-900">Sale completed!</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {completedSale.saleNumber} &mdash; {formatCurrency(completedSale.totalAmount)}
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-3">
+          <Button onClick={() => navigate(`/sales/${completedSale.id}/receipt`)}>
+            Print receipt
+          </Button>
+          <Button variant="secondary" onClick={() => navigate(`/sales/${completedSale.id}`)}>
+            View sale details
+          </Button>
+        </div>
+        <button
+          type="button"
+          className="text-sm font-medium text-brand-700 hover:underline"
+          onClick={() => setCompletedSale(null)}
+        >
+          Start a new sale
+        </button>
       </div>
     );
   }

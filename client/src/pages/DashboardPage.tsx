@@ -23,7 +23,8 @@ function greeting(): string {
 
 function formatMoney(value: string | number): string {
   const n = typeof value === 'string' ? Number(value) : value;
-  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (!Number.isFinite(n)) return 'TZS 0.00';
+  return `TZS ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function StatCard({ label, value, sub, accent = false, icon }: { label: string; value: string; sub?: string; accent?: boolean; icon?: ReactNode }): ReactElement {

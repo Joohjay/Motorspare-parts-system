@@ -117,7 +117,9 @@ export const inventoryApi = {
 
 export function formatCurrency(value: string | number): string {
   const num = Number(value);
-  return Number.isFinite(num) ? num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(value);
+  if (!Number.isFinite(num)) return String(value);
+  const formatted = num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `TZS ${formatted}`;
 }
 
 export function formatQuantity(value: number): string {

@@ -146,7 +146,7 @@ export function PurchaseReturnModal({
 
         <p className="text-right text-sm">
           Estimated return value:{' '}
-          <span className="font-semibold tabular-nums">{estimatedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          <span className="font-semibold tabular-nums">TZS {estimatedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
         </p>
 
         <Field label="Reason" htmlFor="purchase-return-reason" required>
