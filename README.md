@@ -109,6 +109,11 @@ npm run db:seed                  # seed admin + assistant accounts
 
 `prisma:migrate` uses your `DATABASE_URL` from `server/.env`.
 
+> **Passwords are never reset by re-seeding.** The seed only creates the default
+> accounts when they are missing and preserves any password you change in the app.
+> If you forget a password, reset it with:
+> `SEED_RESET_PASSWORDS=1 npm run db:seed`
+
 ### Default accounts (dev seed)
 
 | Role | Email | Password |
