@@ -4,9 +4,6 @@ import type {
   Sale,
   SaleCreateInput,
   SaleListItem,
-  SaleReturn,
-  SaleReturnCreateInput,
-  SaleReturnListItem,
   SaleVoidResult,
 } from '@/types/api';
 
@@ -14,23 +11,10 @@ import { apiRequest } from '@/lib/api';
 
 export interface SaleListQuery {
   q?: string;
-  customerId?: string;
   status?: 'COMPLETED' | 'VOID';
   saleType?: 'RETAIL' | 'WHOLESALE';
   paymentMethod?: PaymentMethod;
   createdById?: string;
-  from?: string;
-  to?: string;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-  page?: number;
-  pageSize?: number;
-}
-
-export interface SaleReturnListQuery {
-  q?: string;
-  saleId?: string;
-  customerId?: string;
   from?: string;
   to?: string;
   sortBy?: string;
@@ -71,21 +55,6 @@ export const salesApi = {
   },
 };
 
-export const salesReturnsApi = {
-  create(saleId: string, input: SaleReturnCreateInput): Promise<{ return: SaleReturn }> {
-    return apiRequest<{ return: SaleReturn }>(`/sales/${saleId}/returns`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    });
-  },
-  get(id: string): Promise<{ return: SaleReturn }> {
-    return apiRequest<{ return: SaleReturn }>(`/sales-returns/${id}`);
-  },
-  list(query: SaleReturnListQuery = {}): Promise<Paginated<SaleReturnListItem>> {
-    return apiRequest<Paginated<SaleReturnListItem>>(`/sales-returns${toQuery(query)}`);
-  },
-};
-
 export const saleStatusLabels: Record<string, string> = {
   COMPLETED: 'Completed',
   VOID: 'Voided',
@@ -99,12 +68,4 @@ export const saleStatusClasses: Record<string, string> = {
 export const saleTypeLabels: Record<string, string> = {
   RETAIL: 'Retail',
   WHOLESALE: 'Wholesale',
-};
-
-export const returnConditionLabels: Record<string, string> = {
-  GOOD: 'Good — restock',
-  DAMAGED: 'Damaged',
-  DEFECTIVE: 'Defective',
-  WRONG_ITEM: 'Wrong item',
-  OTHER: 'Other',
 };

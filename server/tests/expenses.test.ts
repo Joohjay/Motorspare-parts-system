@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 
 const ADMIN_ID = 'admin-1';
-const ASSISTANT_ID = 'assistant-1';
+const _ASSISTANT_ID = 'assistant-1';
 const CATEGORY_ID = 'ecat-1';
 
 interface CategoryRec {
@@ -35,7 +35,7 @@ interface ExpenseRec {
 }
 
 let categories: Record<string, CategoryRec> = {};
-let expenses: Record<string, ExpenseRec> = [];
+let expenses: ExpenseRec[] = [];
 let expIdCounter = 1;
 const auditRecords: Array<Record<string, unknown>> = [];
 

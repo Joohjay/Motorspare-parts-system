@@ -16,8 +16,8 @@ import {
 import { PaginationControls } from '@/components/ui/PaginationControls';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { ApiClientError } from '@/lib/api';
-import { brandsApi, categoriesApi, formatPrice, productsApi } from '@/lib/catalogApi';
-import type { Brand, Category, ProductListItem } from '@/types/api';
+import { brandsApi, formatPrice, productsApi } from '@/lib/catalogApi';
+import type { Brand, ProductListItem } from '@/types/api';
 
 type TargetAction = { product: ProductListItem; status: 'ACTIVE' | 'INACTIVE' } | null;
 
@@ -27,7 +27,6 @@ export function ProductsPage() {
 
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
-  const [categoryId, setCategoryId] = useState('');
   const [brandId, setBrandId] = useState('');
   const [page, setPage] = useState(1);
   const pageSize = 20;
@@ -38,7 +37,6 @@ export function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
 
-  const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [target, setTarget] = useState<TargetAction>(null);
   const [mutating, setMutating] = useState(false);
@@ -51,7 +49,6 @@ export function ProductsPage() {
       .list({
         q: q || undefined,
         status: (status as 'ACTIVE' | 'INACTIVE') || undefined,
-        categoryId: categoryId || undefined,
         brandId: brandId || undefined,
         page,
         pageSize,
@@ -72,17 +69,14 @@ export function ProductsPage() {
     return () => {
       active = false;
     };
-  }, [q, status, categoryId, brandId, page, pageSize, reloadTick]);
+  }, [q, status, brandId, page, pageSize, reloadTick]);
 
   useEffect(() => {
     let active = true;
-    void Promise.all([
-      categoriesApi.list({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' }),
-      brandsApi.list({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' }),
-    ])
-      .then(([catData, brandData]) => {
+    void brandsApi
+      .list({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' })
+      .then((brandData) => {
         if (!active) return;
-        setCategories(catData.items);
         setBrands(brandData.items);
       })
       .catch(() => {
@@ -133,7 +127,7 @@ export function ProductsPage() {
       </div>
 
       <Card className="p-4">
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <div>
             <label htmlFor="product-search" className="block text-sm font-medium text-slate-700">
               Search
@@ -160,26 +154,6 @@ export function ProductsPage() {
               <option value="">All</option>
               <option value="ACTIVE">Active</option>
               <option value="INACTIVE">Inactive</option>
-            </SelectInput>
-          </div>
-          <div>
-            <label htmlFor="product-category" className="block text-sm font-medium text-slate-700">
-              Category
-            </label>
-            <SelectInput
-              id="product-category"
-              value={categoryId}
-              onChange={(e) => {
-                setCategoryId(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">All</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
             </SelectInput>
           </div>
           <div>
@@ -219,7 +193,6 @@ export function ProductsPage() {
                 <tr>
                   <th className="px-4 py-3 font-medium">SKU</th>
                   <th className="px-4 py-3 font-medium">Name</th>
-                  <th className="px-4 py-3 font-medium">Category</th>
                   <th className="px-4 py-3 font-medium">Brand</th>
                   <th className="px-4 py-3 text-right font-medium">Retail</th>
                   <th className="px-4 py-3 text-center font-medium">Status</th>
@@ -239,7 +212,6 @@ export function ProductsPage() {
                         {product.name}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{product.category?.name ?? '—'}</td>
                     <td className="px-4 py-3 text-slate-600">{product.brand?.name ?? '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-slate-700">
                       {formatPrice(product.retailPrice)}

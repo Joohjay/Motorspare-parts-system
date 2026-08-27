@@ -2,7 +2,6 @@ import { Prisma, PurchaseOrderStatus } from '@prisma/client';
 
 import prisma from '../lib/prisma.js';
 import {
-  creditSummary,
   expenseSummary,
   paymentMethodTotals,
   resolveRange,
@@ -28,10 +27,9 @@ export async function getDashboard(role: 'ADMIN' | 'ASSISTANT') {
   const isAdmin = role === 'ADMIN';
   const range = resolveRange({ preset: 'today' });
 
-  const [sales, methods, credit, lowStock, outOfStock] = await Promise.all([
+  const [sales, methods, lowStock, outOfStock] = await Promise.all([
     salesSummary(range),
     paymentMethodTotals(range),
-    creditSummary(),
     listInventory({ stockStatus: 'LOW_STOCK', sortBy: 'quantity', sortOrder: 'asc', pageSize: 8 }),
     listInventory({ stockStatus: 'OUT_OF_STOCK', sortBy: 'name', sortOrder: 'asc', pageSize: 8 }),
   ]);
@@ -53,7 +51,6 @@ export async function getDashboard(role: 'ADMIN' | 'ASSISTANT') {
           totalAmount: true,
           createdAt: true,
           createdBy: { select: { fullName: true } },
-          customer: { select: { name: true } },
         },
       }),
       prisma.purchase.findMany({
@@ -119,11 +116,6 @@ export async function getDashboard(role: 'ADMIN' | 'ASSISTANT') {
         minimumStock: item.minimumStock,
       })),
     },
-    creditSummary: {
-      activeAccounts: credit.activeAccounts,
-      totalOutstanding: credit.totalOutstanding,
-      topDebtors: credit.topDebtors.slice(0, 5),
-    },
     recentSales: recentSales.map((sale) => ({
       id: sale.id,
       saleNumber: sale.saleNumber,
@@ -131,7 +123,6 @@ export async function getDashboard(role: 'ADMIN' | 'ASSISTANT') {
       totalAmount: money(sale.totalAmount),
       createdAt: sale.createdAt,
       cashierName: sale.createdBy.fullName,
-      customerName: sale.customer?.name ?? null,
     })),
     recentPurchases: recentPurchases.map((purchase) => ({
       id: purchase.id,

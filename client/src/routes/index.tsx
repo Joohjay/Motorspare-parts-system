@@ -13,15 +13,12 @@ const LoginPage = lazy(() => import('@/pages/LoginPage').then((m) => ({ default:
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
 const BrandsPage = lazy(() => import('@/pages/catalog/BrandsPage').then((m) => ({ default: m.BrandsPage })));
-const CategoriesPage = lazy(() => import('@/pages/catalog/CategoriesPage').then((m) => ({ default: m.CategoriesPage })));
 const MotorcyclesPage = lazy(() => import('@/pages/catalog/MotorcyclesPage').then((m) => ({ default: m.MotorcyclesPage })));
 const ProductFormPage = lazy(() => import('@/pages/catalog/ProductFormPage').then((m) => ({ default: m.ProductFormPage })));
 const ProductsPage = lazy(() => import('@/pages/catalog/ProductsPage').then((m) => ({ default: m.ProductsPage })));
 const InventoryDetailPage = lazy(() => import('@/pages/inventory/InventoryDetailPage').then((m) => ({ default: m.InventoryDetailPage })));
 const InventoryPage = lazy(() => import('@/pages/inventory/InventoryPage').then((m) => ({ default: m.InventoryPage })));
-const ReservationsPage = lazy(() => import('@/pages/inventory/ReservationsPage').then((m) => ({ default: m.ReservationsPage })));
 const PurchaseOrdersPage = lazy(() => import('@/pages/purchasing/PurchaseOrdersPage').then((m) => ({ default: m.PurchaseOrdersPage })));
-const PurchaseReturnsPage = lazy(() => import('@/pages/purchasing/PurchaseReturnsPage').then((m) => ({ default: m.PurchaseReturnsPage })));
 const PurchasesPage = lazy(() => import('@/pages/purchasing/PurchasesPage').then((m) => ({ default: m.PurchasesPage })));
 const SupplierCreditPage = lazy(() => import('@/pages/purchasing/SupplierCreditPage').then((m) => ({ default: m.SupplierCreditPage })));
 const SuppliersPage = lazy(() => import('@/pages/purchasing/SuppliersPage').then((m) => ({ default: m.SuppliersPage })));
@@ -29,9 +26,6 @@ const PosPage = lazy(() => import('@/pages/sales/PosPage').then((m) => ({ defaul
 const SaleDetailPage = lazy(() => import('@/pages/sales/SaleDetailPage').then((m) => ({ default: m.SaleDetailPage })));
 const ReceiptPage = lazy(() => import('@/pages/sales/ReceiptPage').then((m) => ({ default: m.ReceiptPage })));
 const SalesHistoryPage = lazy(() => import('@/pages/sales/SalesHistoryPage').then((m) => ({ default: m.SalesHistoryPage })));
-const SalesReturnsPage = lazy(() => import('@/pages/sales/SalesReturnsPage').then((m) => ({ default: m.SalesReturnsPage })));
-const CustomerDetailPage = lazy(() => import('@/pages/customers/CustomerDetailPage').then((m) => ({ default: m.CustomerDetailPage })));
-const CustomersPage = lazy(() => import('@/pages/customers/CustomersPage').then((m) => ({ default: m.CustomersPage })));
 const ExpensesPage = lazy(() => import('@/pages/finance/ExpensesPage').then((m) => ({ default: m.ExpensesPage })));
 const NotificationsPage = lazy(() => import('@/pages/notifications/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })));
@@ -65,24 +59,18 @@ export const router = createBrowserRouter([
         children: [
           { path: 'dashboard', element: <SuspenseWrapper><DashboardPage /></SuspenseWrapper> },
           { path: 'inventory', element: <SuspenseWrapper><InventoryPage /></SuspenseWrapper> },
-          { path: 'inventory/reservations', element: <SuspenseWrapper><ReservationsPage /></SuspenseWrapper> },
           { path: 'inventory/:productId', element: <SuspenseWrapper><InventoryDetailPage /></SuspenseWrapper> },
           { path: 'catalog/products', element: <SuspenseWrapper><ProductsPage /></SuspenseWrapper> },
-          { path: 'catalog/categories', element: <SuspenseWrapper><CategoriesPage /></SuspenseWrapper> },
           { path: 'catalog/brands', element: <SuspenseWrapper><BrandsPage /></SuspenseWrapper> },
           { path: 'catalog/motorcycles', element: <SuspenseWrapper><MotorcyclesPage /></SuspenseWrapper> },
           { path: 'purchasing/suppliers', element: <SuspenseWrapper><SuppliersPage /></SuspenseWrapper> },
           { path: 'purchasing/purchase-orders', element: <SuspenseWrapper><PurchaseOrdersPage /></SuspenseWrapper> },
           { path: 'purchasing/purchases', element: <SuspenseWrapper><PurchasesPage /></SuspenseWrapper> },
-          { path: 'purchasing/purchase-returns', element: <SuspenseWrapper><PurchaseReturnsPage /></SuspenseWrapper> },
           { path: 'purchasing/credit', element: <SuspenseWrapper><SupplierCreditPage /></SuspenseWrapper> },
           { path: 'pos', element: <SuspenseWrapper><PosPage /></SuspenseWrapper> },
           { path: 'sales', element: <SuspenseWrapper><SalesHistoryPage /></SuspenseWrapper> },
-          { path: 'sales/returns', element: <SuspenseWrapper><SalesReturnsPage /></SuspenseWrapper> },
           { path: 'sales/:id', element: <SuspenseWrapper><SaleDetailPage /></SuspenseWrapper> },
           { path: 'sales/:id/receipt', element: <SuspenseWrapper><ReceiptPage /></SuspenseWrapper> },
-          { path: 'customers', element: <SuspenseWrapper><CustomersPage /></SuspenseWrapper> },
-          { path: 'customers/:id', element: <SuspenseWrapper><CustomerDetailPage /></SuspenseWrapper> },
           { path: 'expenses', element: <SuspenseWrapper><ExpensesPage /></SuspenseWrapper> },
           { path: 'reports', element: <SuspenseWrapper><ReportsPage /></SuspenseWrapper> },
           { path: 'notifications', element: <SuspenseWrapper><NotificationsPage /></SuspenseWrapper> },

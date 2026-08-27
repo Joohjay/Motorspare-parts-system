@@ -35,7 +35,7 @@ export function ReceiptPage(): ReactElement {
   if (error) return <ErrorState message={error} />;
   if (!receipt) return <LoadingState label="Preparing receipt…" />;
 
-  const { business, sale, customerCreditOutstanding } = receipt;
+  const { business, sale } = receipt;
   const businessName = business['business.name'] ?? 'JM SPAREPARTS';
 
   return (
@@ -68,9 +68,6 @@ export function ReceiptPage(): ReactElement {
             <span>Type: {sale.saleType === 'WHOLESALE' ? 'Wholesale' : 'Retail'}</span>
             <span>Cashier: {sale.createdBy?.fullName ?? '—'}</span>
           </div>
-          {sale.customer ? (
-            <p className="mt-1">Customer: {sale.customer.name}</p>
-          ) : null}
         </div>
 
         <table className="mt-3 w-full text-xs">
@@ -118,18 +115,6 @@ export function ReceiptPage(): ReactElement {
               <dd className="tabular-nums">{formatCurrency(payment.amount)}</dd>
             </div>
           ))}
-          {Number(sale.creditAmount) > 0 ? (
-            <div className="flex justify-between font-medium text-red-700">
-              <dt>On credit</dt>
-              <dd className="tabular-nums">{formatCurrency(sale.creditAmount)}</dd>
-            </div>
-          ) : null}
-          {customerCreditOutstanding !== null ? (
-            <div className="flex justify-between text-slate-500">
-              <dt>Customer credit balance after this sale</dt>
-              <dd className="tabular-nums">{formatCurrency(customerCreditOutstanding)}</dd>
-            </div>
-          ) : null}
         </dl>
 
         {sale.status !== 'COMPLETED' ? (

@@ -33,7 +33,7 @@ const db = {
       return null;
     }),
     update: mock.fn(async () => ({})),
-    findMany: mock.fn(async (args?: { where?: Record<string, unknown> }) => {
+    findMany: mock.fn(async (_args?: { where?: Record<string, unknown> }) => {
       const users = [
         { id: ADMIN_ID }, { id: ASSISTANT_ID },
       ];
@@ -165,7 +165,7 @@ function adminJar(): CookieJar {
   return jar;
 }
 
-function assistantJar(): CookieJar {
+function _assistantJar(): CookieJar {
   const jar = new CookieJar();
   jar.cookies.set('makire_session', signSessionToken(ASSISTANT_ID, 0));
   return jar;
@@ -225,7 +225,7 @@ describe('notifications', () => {
       const body = res.body as { items: NotifRec[]; pagination: { totalItems: number } };
       assert.equal(body.items.length, 1);
       assert.equal(body.pagination.totalItems, 1);
-      assert.equal(body.items[0].id, 'n1');
+      assert.equal(body.items[0]!.id, 'n1');
     } finally { await close(); }
   });
 
@@ -241,7 +241,7 @@ describe('notifications', () => {
       assert.equal(res.status, 200);
       const body = res.body as { items: NotifRec[]; pagination: { totalItems: number } };
       assert.equal(body.items.length, 1);
-      assert.equal(body.items[0].id, 'n1');
+      assert.equal(body.items[0]!.id, 'n1');
     } finally { await close(); }
   });
 
@@ -255,7 +255,7 @@ describe('notifications', () => {
       const csrf = await getCsrf(port, jar);
       const res = await request(port, jar, 'POST', '/api/notifications/n1/read', undefined, csrf);
       assert.equal(res.status, 200);
-      assert.ok(notifications[0].readAt);
+      assert.ok(notifications[0]!.readAt);
     } finally { await close(); }
   });
 
@@ -299,9 +299,9 @@ describe('notifications', () => {
       const res = await request(port, jar, 'POST', '/api/notifications/mark-all-read', undefined, csrf);
       assert.equal(res.status, 200);
       assert.equal((res.body as { updatedCount: number }).updatedCount, 2);
-      assert.ok(notifications[0].readAt);
-      assert.ok(notifications[1].readAt);
-      assert.ok(!notifications[2].readAt, 'other user notification should not be marked');
+      assert.ok(notifications[0]!.readAt);
+      assert.ok(notifications[1]!.readAt);
+      assert.ok(!notifications[2]!.readAt, 'other user notification should not be marked');
     } finally { await close(); }
   });
 

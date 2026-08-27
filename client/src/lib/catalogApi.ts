@@ -2,9 +2,6 @@ import type {
   Brand,
   BrandInput,
   CatalogStatus,
-  Category,
-  CategoryDetail,
-  CategoryInput,
   CompatibilityEntry,
   IdentifierType,
   MotorcycleMake,
@@ -27,7 +24,6 @@ export interface ListQuery {
   pageSize?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
-  categoryId?: string;
   brandId?: string;
   parentId?: string;
   makeId?: string;
@@ -48,33 +44,6 @@ function toQuery(query: ListQuery): string {
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
-
-export const categoriesApi = {
-  list(query: ListQuery = {}): Promise<Paginated<Category>> {
-    return apiRequest<Paginated<Category>>(`/categories${toQuery(query)}`);
-  },
-  get(id: string): Promise<{ category: CategoryDetail }> {
-    return apiRequest<{ category: CategoryDetail }>(`/categories/${id}`);
-  },
-  create(input: CategoryInput): Promise<{ category: Category }> {
-    return apiRequest<{ category: Category }>('/categories', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    });
-  },
-  update(id: string, input: CategoryInput): Promise<{ category: Category }> {
-    return apiRequest<{ category: Category }>(`/categories/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(input),
-    });
-  },
-  setStatus(id: string, status: CatalogStatus): Promise<{ category: Category }> {
-    return apiRequest<{ category: Category }>(`/categories/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
-  },
-};
 
 export const brandsApi = {
   list(query: ListQuery = {}): Promise<Paginated<Brand>> {

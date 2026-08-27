@@ -116,44 +116,6 @@ export async function dailySalesSeries(range: { from: Date; to: Date }) {
   }));
 }
 
-export async function creditSummary() {
-  const agg = await prisma.customerCreditAccount.aggregate({
-    where: { status: 'ACTIVE' },
-    _count: { _all: true },
-    _sum: { outstandingBalance: true, creditLimit: true },
-  });
-  const topDebtors = await prisma.customerCreditAccount.findMany({
-    where: { status: 'ACTIVE', outstandingBalance: { gt: 0 } },
-    orderBy: { outstandingBalance: 'desc' },
-    take: 10,
-    include: { customer: { select: { id: true, name: true, phone: true } } },
-  });
-  return {
-    activeAccounts: agg?._count._all ?? 0,
-    totalOutstanding: money(agg?._sum.outstandingBalance),
-    totalCreditLimit: money(agg?._sum.creditLimit),
-    topDebtors: topDebtors.map((account) => ({
-      customerId: account.customerId,
-      name: account.customer.name,
-      phone: account.customer.phone,
-      outstandingBalance: money(account.outstandingBalance),
-      creditLimit: money(account.creditLimit),
-    })),
-  };
-}
-
-export async function returnsSummary(range: { from: Date; to: Date }) {
-  const agg = await prisma.saleReturn.aggregate({
-    where: { status: 'COMPLETED', returnDate: { gte: range.from, lt: range.to } },
-    _count: { _all: true },
-    _sum: { totalAmount: true },
-  });
-  return {
-    returnCount: agg?._count._all ?? 0,
-    refundedTotal: money(agg?._sum.totalAmount),
-  };
-}
-
 export async function expenseSummary(range: { from: Date; to: Date }) {
   const byCategory = await prisma.expense.groupBy({
     by: ['categoryId'],
@@ -185,10 +147,9 @@ export async function expenseSummary(range: { from: Date; to: Date }) {
  *   Net Operating Result. Expenses never mix into COGS.
  */
 export async function financialReport(range: { from: Date; to: Date }) {
-  const [sales, payments, returns, expenses] = await Promise.all([
+  const [sales, payments, expenses] = await Promise.all([
     salesSummary(range),
     paymentMethodTotals(range),
-    returnsSummary(range),
     expenseSummary(range),
   ]);
 
@@ -200,7 +161,6 @@ export async function financialReport(range: { from: Date; to: Date }) {
     range: { from: range.from, to: range.to },
     sales,
     payments,
-    returns,
     expenses,
     netOperatingResult: {
       grossProfit: money(grossProfit),

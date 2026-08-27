@@ -855,92 +855,6 @@ afterEach(async () => {
 // ---------------------------------------------------------------------------
 
 describe('catalog API', () => {
-  describe('categories', () => {
-    test('ADMIN can create a category; slug is derived; audit is recorded', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'POST', '/api/categories', { name: 'Filters' });
-        assert.equal(res.status, 201);
-        const category = res.body.category as Rec;
-        assert.equal(category.name, 'Filters');
-        assert.equal(category.slug, 'filters');
-        assert.equal(category.status, 'ACTIVE');
-        assert.ok(auditRecords.some((a) => a.action === 'CATEGORY_CREATED' && a.entityId === category.id));
-      } finally {
-        await close();
-      }
-    });
-
-    test('duplicate category name under the same parent is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        await mutate(port, jar, 'POST', '/api/categories', { name: 'Filters' });
-        const res = await mutate(port, jar, 'POST', '/api/categories', { name: 'Filters' });
-        assert.equal(res.status, 409);
-      } finally {
-        await close();
-      }
-    });
-
-    test('category list is paginated and searchable', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = assistantJar();
-        const res = await request(port, jar, 'GET', '/api/categories?page=1&pageSize=2');
-        assert.equal(res.status, 200);
-        assert.equal((res.body.items as Rec[]).length, 2);
-        assert.equal((res.body.pagination as Rec).totalItems, 3);
-
-        const search = await request(port, jar, 'GET', '/api/categories?q=brake');
-        assert.equal((search.body.items as Rec[]).length, 2);
-      } finally {
-        await close();
-      }
-    });
-
-    test('deactivating a category in use by products is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const categoryId = categories.find((c) => c.name === 'Brake Pads')!.id;
-        const res = await mutate(port, jar, 'PATCH', `/api/categories/${categoryId}/status`, { status: 'INACTIVE' });
-        assert.equal(res.status, 400);
-        assert.equal((res.body.error as Rec).code, 'CATEGORY_IN_USE');
-      } finally {
-        await close();
-      }
-    });
-
-    test('deactivating an unused category works and is audited', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const created = await mutate(port, jar, 'POST', '/api/categories', { name: 'Unused' });
-        const id = (created.body.category as Rec).id as string;
-        const res = await mutate(port, jar, 'PATCH', `/api/categories/${id}/status`, { status: 'INACTIVE' });
-        assert.equal(res.status, 200);
-        assert.equal((res.body.category as Rec).status, 'INACTIVE');
-        assert.ok(auditRecords.some((a) => a.action === 'CATEGORY_DEACTIVATED' && a.entityId === id));
-      } finally {
-        await close();
-      }
-    });
-
-    test('validation: empty category name is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'POST', '/api/categories', { name: '   ' });
-        assert.equal(res.status, 400);
-        assert.equal((res.body.error as Rec).code, 'INVALID_REQUEST');
-      } finally {
-        await close();
-      }
-    });
-  });
-
   describe('brands', () => {
     test('ADMIN can create, update and list brands', async () => {
       const { port, close } = await startServer();
@@ -1419,7 +1333,7 @@ describe('catalog API', () => {
       const { port, close } = await startServer();
       try {
         const jar = assistantJar();
-        for (const path of ['/api/products', '/api/categories', '/api/brands', '/api/motorcycles/makes', '/api/motorcycles/models', '/api/motorcycles/variants']) {
+        for (const path of ['/api/products', '/api/brands', '/api/motorcycles/makes', '/api/motorcycles/models', '/api/motorcycles/variants']) {
           const read = await request(port, jar, 'GET', path);
           assert.equal(read.status, 200, `${path} readable by assistant`);
         }
@@ -1433,9 +1347,6 @@ describe('catalog API', () => {
         });
         assert.equal(create.status, 403);
         assert.equal((create.body.error as Rec).code, 'FORBIDDEN');
-
-        const catCreate = await mutate(port, jar, 'POST', '/api/categories', { name: 'Nope' });
-        assert.equal(catCreate.status, 403);
 
         const compatAdd = await mutate(port, jar, 'POST', '/api/compatibility', {
           productId: products[0]!.id,

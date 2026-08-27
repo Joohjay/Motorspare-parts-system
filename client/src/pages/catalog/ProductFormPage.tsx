@@ -16,14 +16,12 @@ import {
 import { ApiClientError } from '@/lib/api';
 import {
   brandsApi,
-  categoriesApi,
   identifierTypes,
   motorcyclesApi,
   productsApi,
 } from '@/lib/catalogApi';
 import type {
   Brand,
-  Category,
   CatalogStatus,
   IdentifierInput,
   IdentifierType,
@@ -51,7 +49,6 @@ export function ProductFormPage() {
   const [sku, setSku] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState('');
   const [brandId, setBrandId] = useState('');
   const [retailPrice, setRetailPrice] = useState('');
   const [wholesalePrice, setWholesalePrice] = useState('');
@@ -64,7 +61,6 @@ export function ProductFormPage() {
   ]);
   const [compatibilities, setCompatibilities] = useState<CompatibilityRow[]>([]);
 
-  const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [makes, setMakes] = useState<MotorcycleMake[]>([]);
 
@@ -84,7 +80,6 @@ export function ProductFormPage() {
     setLoading(true);
     setLoadError(null);
     const tasks: Promise<unknown>[] = [
-      categoriesApi.list({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' }),
       brandsApi.list({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' }),
       motorcyclesApi.listMakes({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' }),
     ];
@@ -94,18 +89,15 @@ export function ProductFormPage() {
     void Promise.all(tasks)
       .then((results) => {
         if (!active) return;
-        const catData = results[0] as { items: Category[] };
-        const brandData = results[1] as { items: Brand[] };
-        const makeData = results[2] as { items: MotorcycleMake[] };
-        setCategories(catData.items);
+        const brandData = results[0] as { items: Brand[] };
+        const makeData = results[1] as { items: MotorcycleMake[] };
         setBrands(brandData.items);
         setMakes(makeData.items);
         if (isEdit) {
-          const product = (results[3] as { product: ProductDetail }).product;
+          const product = (results[2] as { product: ProductDetail }).product;
           setSku(product.sku);
           setName(product.name);
           setDescription(product.description ?? '');
-          setCategoryId(product.categoryId);
           setBrandId(product.brandId ?? '');
           setRetailPrice(String(Number(product.retailPrice)));
           setWholesalePrice(String(Number(product.wholesalePrice)));
@@ -236,11 +228,6 @@ export function ProductFormPage() {
     const wholesale = Number(wholesalePrice);
     const minStock = Number(minimumStock);
     const reorder = Number(reorderLevel);
-    if (!categoryId) {
-      setError('Please choose a category.');
-      setSubmitting(false);
-      return;
-    }
     if (!Number.isFinite(retail) || retail < 0) {
       setError('Retail price must be a number of at least 0.');
       setSubmitting(false);
@@ -266,7 +253,6 @@ export function ProductFormPage() {
           sku: sku.trim(),
           name: name.trim(),
           description: description.trim() || null,
-          categoryId,
           brandId: brandId || null,
           retailPrice: retail,
           wholesalePrice: wholesale,
@@ -281,7 +267,6 @@ export function ProductFormPage() {
           sku: sku.trim(),
           name: name.trim(),
           description: description.trim() || null,
-          categoryId,
           brandId: brandId || null,
           retailPrice: retail,
           wholesalePrice: wholesale,
@@ -357,21 +342,6 @@ export function ProductFormPage() {
                 />
               </Field>
             </div>
-            <Field label="Category" htmlFor="product-category" required>
-              <SelectInput
-                id="product-category"
-                required
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-              >
-                <option value="">Choose a category…</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </SelectInput>
-            </Field>
             <Field label="Brand" htmlFor="product-brand" hint="Optional.">
               <SelectInput
                 id="product-brand"

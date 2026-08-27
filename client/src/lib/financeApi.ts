@@ -1,5 +1,4 @@
 import type {
-  CreditSummaryReport,
   DailySalesPoint,
   Expense,
   ExpenseCategory,
@@ -71,9 +70,6 @@ export const reportsApi = {
   },
   financial(query: ReportRangeQuery): Promise<FinancialReport> {
     return apiRequest<FinancialReport>(`/finance/reports/financial${toQuery(query)}`);
-  },
-  credit(): Promise<CreditSummaryReport> {
-    return apiRequest<CreditSummaryReport>('/finance/reports/credit');
   },
   expenses(query: ReportRangeQuery): Promise<{ range: ReportRange } & ExpenseSummaryReport> {
     return apiRequest(`/finance/reports/expenses${toQuery(query)}`);

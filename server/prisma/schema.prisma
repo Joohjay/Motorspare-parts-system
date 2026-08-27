@@ -385,8 +385,8 @@ model Product {
   sku            String        @unique // internal SKU
   name           String
   description    String?
-  categoryId     String
-  category       Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  categoryId     String?
+  category       Category?     @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   brandId        String? // branded or unbranded
   brand          Brand?        @relation(fields: [brandId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   retailPrice    Decimal       @default(0) @db.Decimal(12, 2)

@@ -71,31 +71,7 @@ export interface Paginated<T> {
   pagination: PaginationMeta;
 }
 
-// Categories ----------------------------------------------------------------
-
-export interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  parentId: string | null;
-  description: string | null;
-  status: CatalogStatus;
-  productCount: number;
-  childCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CategoryDetail extends Category {
-  parent: { id: string; name: string; slug: string; status: CatalogStatus } | null;
-  children: { id: string; name: string; slug: string; status: CatalogStatus }[];
-}
-
-export interface CategoryInput {
-  name: string;
-  parentId?: string | null;
-  description?: string | null;
-}
+// Categories removed (feature removed).
 
 // Brands --------------------------------------------------------------------
 
@@ -201,11 +177,9 @@ export interface ProductListItem {
   sku: string;
   name: string;
   status: CatalogStatus;
-  categoryId: string;
   brandId: string | null;
   retailPrice: number | string;
   wholesalePrice: number | string;
-  category: { id: string; name: string; slug: string; status: CatalogStatus } | null;
   brand: { id: string; name: string; status: CatalogStatus } | null;
   identifiers: Identifier[];
   compatibilityCount: number;
@@ -224,7 +198,6 @@ export interface ProductInput {
   sku: string;
   name: string;
   description?: string | null;
-  categoryId: string;
   brandId?: string | null;
   retailPrice: number;
   wholesalePrice: number;
@@ -257,20 +230,15 @@ export type InventoryTransactionType =
   | 'RESERVATION'
   | 'RESERVATION_RELEASE';
 
-export type ReservationStatus = 'ACTIVE' | 'FULFILLED' | 'CANCELLED' | 'EXPIRED';
-
 export type MovementFilter = 'in' | 'out' | 'reservation';
 
 export interface InventoryListItem {
   productId: string;
   sku: string;
   name: string;
-  categoryId: string;
-  categoryName: string | null;
   brandId: string | null;
   brandName: string | null;
   quantityOnHand: number;
-  quantityReserved: number;
   available: number;
   weightedAverageCost: string;
   inventoryValue: string;
@@ -296,47 +264,13 @@ export interface InventoryTransaction {
   createdBy: { id: string; fullName: string } | null;
 }
 
-export interface StockReservation {
-  id: string;
-  productId: string;
-  quantity: number;
-  status: ReservationStatus;
-  reservedUntil: string | null;
-  note: string | null;
-  createdAt: string;
-  updatedAt: string;
-  product: { id: string; sku: string; name: string };
-  createdBy: { id: string; fullName: string } | null;
-}
-
 export interface InventoryAdjustInput {
   quantity: number;
   reason: string;
   type?: 'ADJUSTMENT' | 'DAMAGE' | 'LOSS';
 }
 
-export interface ReservationCreateInput {
-  productId: string;
-  quantity: number;
-  reservedUntil?: string | null;
-  note?: string | null;
-}
-
 export interface InventoryMutationResult {
-  inventory: InventoryDetail;
-  transactionId: string;
-  notificationsCreated: number;
-}
-
-export interface ReservationCreateResult {
-  reservation: StockReservation;
-  inventory: InventoryDetail;
-  transactionId: string;
-  notificationsCreated: number;
-}
-
-export interface ReservationReleaseResult {
-  reservation: StockReservation;
   inventory: InventoryDetail;
   transactionId: string;
   notificationsCreated: number;
@@ -351,7 +285,7 @@ export type SupplierProductStatus = 'ACTIVE' | 'INACTIVE';
 export type PurchaseOrderStatus = 'DRAFT' | 'PENDING' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
 export type PurchaseStatus = 'COMPLETED';
 export type PurchasePaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID';
-export type PaymentMethod = 'CASH' | 'BANK' | 'MPESA' | 'CHEQUE' | 'OTHER' | 'CREDIT';
+export type PaymentMethod = 'CASH' | 'BANK' | 'MPESA' | 'CHEQUE' | 'OTHER';
 
 export interface Supplier {
   id: string;
@@ -523,93 +457,9 @@ export interface SupplierCreditPayment {
 // Sales & customers (Stage 7)
 // ---------------------------------------------------------------------------
 
-export type CustomerType = 'RETAIL' | 'WHOLESALE' | 'MECHANIC' | 'GARAGE' | 'BUSINESS' | 'OTHER';
-export type CustomerStatus = 'ACTIVE' | 'INACTIVE';
 export type SaleStatus = 'COMPLETED' | 'VOID';
 export type SaleType = 'RETAIL' | 'WHOLESALE';
-export type ReturnCondition = 'GOOD' | 'DAMAGED' | 'DEFECTIVE' | 'WRONG_ITEM' | 'OTHER';
 export type ExpenseStatus = 'ACTIVE' | 'VOID';
-
-export interface Customer {
-  id: string;
-  name: string;
-  phone: string | null;
-  email: string | null;
-  address: string | null;
-  notes: string | null;
-  type: CustomerType;
-  status: CustomerStatus;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CustomerListItem extends Customer {
-  creditAccount: { outstandingBalance: string; creditLimit: string; status: 'ACTIVE' | 'CLOSED' } | null;
-  salesCount: number;
-}
-
-export interface CustomerDetail extends Customer {
-  creditAccount: {
-    id: string;
-    creditLimit: string;
-    outstandingBalance: string;
-    status: 'ACTIVE' | 'CLOSED';
-    createdAt: string;
-  } | null;
-  salesCount: number;
-  returnsCount: number;
-}
-
-export interface CustomerInput {
-  name: string;
-  phone?: string | null;
-  email?: string | null;
-  address?: string | null;
-  notes?: string | null;
-  type?: CustomerType;
-}
-
-export interface CustomerCreditAccount {
-  id: string;
-  customerId: string;
-  creditLimit: string;
-  outstandingBalance: string;
-  status: 'ACTIVE' | 'CLOSED';
-  openedAt: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CustomerCreditPayment {
-  id: string;
-  accountId: string;
-  saleId: string | null;
-  amount: string;
-  paymentMethod: PaymentMethod;
-  reference: string | null;
-  paidAt: string;
-  createdBy: { id: string; fullName: string } | null;
-}
-
-export interface StatementRow {
-  date: string;
-  type: 'SALE_CREDIT' | 'PAYMENT';
-  reference: string;
-  description: string;
-  debit: string;
-  credit: string;
-  balance: string;
-}
-
-export interface CustomerStatement {
-  account: {
-    id: string;
-    creditLimit: string;
-    outstandingBalance: string;
-    status: 'ACTIVE' | 'CLOSED';
-  };
-  rows: StatementRow[];
-}
 
 export interface SaleItem {
   id: string;
@@ -632,20 +482,9 @@ export interface SalePayment {
   paidAt: string;
 }
 
-export interface SaleReturnSummary {
-  id: string;
-  returnNumber: string;
-  status: string;
-  totalAmount: string;
-  creditAdjusted: boolean;
-  returnDate: string;
-}
-
 export interface Sale {
   id: string;
   saleNumber: string;
-  customerId: string | null;
-  customer: { id: string; name: string } | null;
   saleType: SaleType;
   status: SaleStatus;
   subtotal: string;
@@ -656,9 +495,6 @@ export interface Sale {
   createdBy: { id: string; fullName: string } | null;
   items: SaleItem[];
   payments: SalePayment[];
-  returns: SaleReturnSummary[];
-  paidAmount: string;
-  creditAmount: string;
   cogs?: string;
   grossProfit?: string;
 }
@@ -666,8 +502,6 @@ export interface Sale {
 export interface SaleListItem {
   id: string;
   saleNumber: string;
-  customerId: string | null;
-  customerName: string | null;
   saleType: SaleType;
   status: SaleStatus;
   totalAmount: string;
@@ -693,70 +527,12 @@ export interface SalePaymentInput {
 export interface SaleCreateInput {
   items: SaleLineInput[];
   payments: SalePaymentInput[];
-  customerId?: string | null;
   saleType?: SaleType;
   notes?: string | null;
 }
 
 export interface SaleVoidResult {
   sale: { id: string; saleNumber: string; status: SaleStatus };
-  creditReversed: string;
-  refundDue: string;
-}
-
-export interface SaleReturnItem {
-  id: string;
-  saleItemId: string;
-  productId: string;
-  sku: string;
-  name: string;
-  quantityReturned: number;
-  unitPrice: string;
-  lineTotal: string;
-  condition: ReturnCondition;
-}
-
-export interface SaleReturn {
-  id: string;
-  returnNumber: string;
-  saleId: string;
-  saleNumber?: string;
-  customerId: string | null;
-  customer?: { id: string; name: string } | null;
-  status: string;
-  reason: string;
-  refundMethod: PaymentMethod | null;
-  refundReference: string | null;
-  creditAdjusted: boolean;
-  totalAmount: string;
-  returnDate: string;
-  createdAt: string;
-  createdBy?: { id: string; fullName: string } | null;
-  items: SaleReturnItem[];
-  sale?: { id: string; saleNumber: string; saleType: SaleType; status: SaleStatus };
-}
-
-export interface SaleReturnListItem {
-  id: string;
-  returnNumber: string;
-  saleNumber: string;
-  customerId: string | null;
-  customerName: string | null;
-  status: string;
-  totalAmount: string;
-  creditAdjusted: boolean;
-  refundMethod: PaymentMethod | null;
-  itemCount: number;
-  createdBy: { id: string; fullName: string } | null;
-  returnDate: string;
-}
-
-export interface SaleReturnCreateInput {
-  items: Array<{ saleItemId: string; quantity: number; condition: ReturnCondition }>;
-  reason: string;
-  creditAdjusted?: boolean;
-  refundMethod?: PaymentMethod;
-  refundReference?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -819,24 +595,6 @@ export interface DailySalesPoint {
   orders: number;
 }
 
-export interface CreditSummaryReport {
-  activeAccounts: number;
-  totalOutstanding: string;
-  totalCreditLimit: string;
-  topDebtors: Array<{
-    customerId: string;
-    name: string;
-    phone: string | null;
-    outstandingBalance: string;
-    creditLimit: string;
-  }>;
-}
-
-export interface ReturnsSummaryReport {
-  returnCount: number;
-  refundedTotal: string;
-}
-
 export interface ExpenseSummaryReport {
   total: string;
   byCategory: Array<{ categoryId: string; categoryName: string; total: string }>;
@@ -846,7 +604,6 @@ export interface FinancialReport {
   range: { from: Date | string; to: Date | string };
   sales: SalesSummaryReport;
   payments: PaymentMethodTotals[];
-  returns: ReturnsSummaryReport;
   expenses: ExpenseSummaryReport;
   netOperatingResult: {
     grossProfit: string;
@@ -856,63 +613,12 @@ export interface FinancialReport {
 }
 
 // ---------------------------------------------------------------------------
-// Stage 8 — purchase returns, receipts, dashboard, notifications, settings
+// Stage 8 — receipts, dashboard, notifications, settings
 // ---------------------------------------------------------------------------
-
-export interface PurchaseReturnItem {
-  id: string;
-  purchaseItemId: string;
-  productId: string;
-  sku: string;
-  name: string;
-  quantityReturned: number;
-  unitCost: string;
-  lineTotal: string;
-}
-
-export type PurchaseReturnStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
-
-export interface PurchaseReturn {
-  id: string;
-  returnNumber: string;
-  purchase: { id: string; purchaseNumber: string; invoiceReference: string | null; status: PurchaseStatus };
-  supplier: { id: string; name: string };
-  createdBy: { id: string; fullName: string };
-  status: PurchaseReturnStatus;
-  reason: string | null;
-  returnDate: string;
-  totalAmount: string;
-  creditedAmount: string;
-  refundDue: string;
-  items: PurchaseReturnItem[];
-}
-
-export interface PurchaseReturnListItem {
-  id: string;
-  returnNumber: string;
-  purchaseNumber: string;
-  supplierId: string;
-  supplierName: string;
-  status: PurchaseReturnStatus;
-  totalAmount: string;
-  creditedAmount: string;
-  itemCount: number;
-  createdBy: { id: string; fullName: string } | null;
-  returnDate: string;
-}
-
-export interface PurchaseReturnCreateInput {
-  items: Array<{ purchaseItemId: string; quantity: number }>;
-  reason: string;
-  settlement?: 'SUPPLIER_CREDIT' | 'REFUND' | 'NONE';
-  refundMethod?: PaymentMethod;
-  refundReference?: string | null;
-}
 
 export interface ReceiptData {
   business: Record<string, string>;
   sale: Sale;
-  customerCreditOutstanding: number | null;
 }
 
 export interface DashboardPaymentEntry {
@@ -936,14 +642,6 @@ export interface DashboardTopProduct {
   revenue: number;
 }
 
-export interface DashboardDebtor {
-  customerId: string;
-  name: string;
-  phone: string | null;
-  outstandingBalance: string;
-  creditLimit: string;
-}
-
 export interface Dashboard {
   generatedAt: string;
   todaySales: {
@@ -958,11 +656,6 @@ export interface Dashboard {
     outOfStockCount: number;
     lowStockItems: DashboardInventoryAlertItem[];
   };
-  creditSummary: {
-    activeAccounts: number;
-    totalOutstanding: string;
-    topDebtors: DashboardDebtor[];
-  };
   recentSales: Array<{
     id: string;
     saleNumber: string;
@@ -970,7 +663,6 @@ export interface Dashboard {
     totalAmount: number;
     createdAt: string;
     cashierName: string;
-    customerName: string | null;
   }>;
   recentPurchases: Array<{
     id: string;
@@ -999,10 +691,8 @@ export type NotificationType =
   | 'GENERAL'
   | 'LOW_STOCK'
   | 'OUT_OF_STOCK'
-  | 'CUSTOMER_CREDIT_DUE'
   | 'SUPPLIER_PAYMENT_DUE'
-  | 'PURCHASE_ORDER_PENDING'
-  | 'RESERVATION_PENDING';
+  | 'PURCHASE_ORDER_PENDING';
 
 export interface AppNotification {
   id: string;

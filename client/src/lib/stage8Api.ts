@@ -3,9 +3,6 @@ import type {
   BusinessSettings,
   Dashboard,
   Paginated,
-  PurchaseReturn,
-  PurchaseReturnCreateInput,
-  PurchaseReturnListItem,
   ReceiptData,
 } from '@/types/api';
 
@@ -21,35 +18,6 @@ function toQuery(query: object): string {
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
-
-export interface PurchaseReturnListQuery {
-  q?: string;
-  purchaseId?: string;
-  supplierId?: string;
-  status?: 'PENDING' | 'COMPLETED' | 'CANCELLED';
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-  page?: number;
-  pageSize?: number;
-}
-
-export const purchaseReturnsApi = {
-  create(purchaseId: string, input: PurchaseReturnCreateInput): Promise<{ return: PurchaseReturn }> {
-    return apiRequest<{ return: PurchaseReturn }>(`/purchases/${purchaseId}/returns`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    });
-  },
-  cancel(id: string): Promise<{ purchaseReturn: Pick<PurchaseReturn, 'id' | 'returnNumber' | 'status'>; creditRestored: string; creditUnrecoverable: string }> {
-    return apiRequest(`/purchase-returns/${id}/cancel`, { method: 'POST' });
-  },
-  get(id: string): Promise<{ return: PurchaseReturn }> {
-    return apiRequest<{ return: PurchaseReturn }>(`/purchase-returns/${id}`);
-  },
-  list(query: PurchaseReturnListQuery = {}): Promise<Paginated<PurchaseReturnListItem>> {
-    return apiRequest<Paginated<PurchaseReturnListItem>>(`/purchase-returns${toQuery(query)}`);
-  },
-};
 
 export const dashboardApi = {
   get(): Promise<{ dashboard: Dashboard }> {

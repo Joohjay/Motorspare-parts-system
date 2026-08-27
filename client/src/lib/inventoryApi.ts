@@ -6,11 +6,6 @@ import type {
   InventoryTransaction,
   MovementFilter,
   Paginated,
-  ReservationCreateInput,
-  ReservationCreateResult,
-  ReservationReleaseResult,
-  ReservationStatus,
-  StockReservation,
   StockStatus,
 } from '@/types/api';
 
@@ -37,15 +32,6 @@ export interface TransactionListQuery {
   userId?: string;
   from?: string;
   to?: string;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-  page?: number;
-  pageSize?: number;
-}
-
-export interface ReservationListQuery {
-  status?: ReservationStatus;
-  productId?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   page?: number;
@@ -99,20 +85,6 @@ export const inventoryApi = {
       body: JSON.stringify(input),
     });
   },
-  reservations(query: ReservationListQuery = {}): Promise<Paginated<StockReservation>> {
-    return apiRequest<Paginated<StockReservation>>(`/inventory/reservations${toQuery(query)}`);
-  },
-  reserve(input: ReservationCreateInput): Promise<ReservationCreateResult> {
-    return apiRequest<ReservationCreateResult>('/inventory/reservations', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    });
-  },
-  release(reservationId: string): Promise<ReservationReleaseResult> {
-    return apiRequest<ReservationReleaseResult>(`/inventory/reservations/${reservationId}/release`, {
-      method: 'PATCH',
-    });
-  },
 };
 
 export function formatCurrency(value: string | number): string {
@@ -135,15 +107,6 @@ export const transactionTypeLabels: Record<string, string> = {
   ADJUSTMENT: 'Adjustment',
   DAMAGE: 'Damage',
   LOSS: 'Loss',
-  RESERVATION: 'Reservation',
-  RESERVATION_RELEASE: 'Reservation release',
-};
-
-export const reservationStatusLabels: Record<string, string> = {
-  ACTIVE: 'Active',
-  FULFILLED: 'Fulfilled',
-  CANCELLED: 'Cancelled',
-  EXPIRED: 'Expired',
 };
 
 export const stockStatusLabels: Record<StockStatus, string> = {

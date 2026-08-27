@@ -1,11 +1,9 @@
-// Stage 7 — sales/POS, customer credit, returns & expenses unit verification.
+// Stage 7 — sales/POS & expenses unit verification.
 //
 // Runs against the real Express app (createApp) with Prisma replaced by an
 // in-memory mock via the lib/prisma test seam (globalThis.__MAKIRE_PRISMA__).
-// Covers pricing/discount/payment-allocation rules, COGS freezing, credit
-// limit enforcement, return validation, void reversal and the ADMIN/ASSISTANT
-// authorization boundary. Live PostgreSQL concurrency guarantees are verified
-// in tests/integration/sales.integration.test.ts.
+// Covers pricing/discount/payment-allocation rules, COGS freezing, void
+// reversal and the ADMIN/ASSISTANT authorization boundary.
 
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-only-secret-at-least-thirty-two-chars';
@@ -423,7 +421,7 @@ const db = {
       const rollback = () => {
         tables.forEach((table, index) => {
           table.length = 0;
-          table.push(...snapshot[index]);
+          table.push(...(snapshot[index] ?? []));
         });
       };
       try {
@@ -656,7 +654,7 @@ describe('sales — POS creation', () => {
       payments: [{ paymentMethod: 'CASH', amount: 180 }],
     });
     assert.equal(ok.status, 201);
-    assert.equal(((ok.body.sale as Rec).items as Rec[])[0].lineTotal, '180.00');
+    assert.equal(((ok.body.sale as Rec).items as Rec[])[0]!.lineTotal, '180.00');
 
     const bad = await mutate(server.port, adminJar(), 'POST', '/api/sales', {
       items: [{ productId: 'prod-1', quantity: 2, discount: 500 }],
@@ -703,7 +701,7 @@ describe('sales — POS creation', () => {
       payments: [{ paymentMethod: 'CASH', amount: 70 }],
     });
     assert.equal(allowed.status, 201, JSON.stringify(allowed.body));
-    assert.equal(((allowed.body.sale as Rec).items as Rec[])[0].unitPrice, '70.00');
+    assert.equal(((allowed.body.sale as Rec).items as Rec[])[0]!.unitPrice, '70.00');
   });
 
   test('inactive product cannot be sold', async () => {
@@ -729,256 +727,22 @@ describe('sales — POS creation', () => {
   });
 });
 
-describe('sales — customer credit', () => {
-  test('credit sale charges the customer account within the limit', async () => {
+describe('sale voiding', () => {
+  test('void restores stock and marks the sale VOID', async () => {
     server = await startServer();
     const res = await mutate(server.port, adminJar(), 'POST', '/api/sales', {
-      items: [{ productId: 'prod-1', quantity: 10 }],
-      customerId: 'cust-1',
-      payments: [{ paymentMethod: 'CREDIT', amount: 1000 }],
-    });
-    assert.equal(res.status, 201, JSON.stringify(res.body));
-
-    const account = creditAccounts.find((a) => a.customerId === 'cust-1');
-    assert.equal(Number(account?.outstandingBalance), 21000); // 20000 + 1000
-  });
-
-  test('credit sale without a registered customer is rejected', async () => {
-    server = await startServer();
-    const res = await mutate(server.port, adminJar(), 'POST', '/api/sales', {
-      items: [{ productId: 'prod-1', quantity: 1 }],
-      payments: [{ paymentMethod: 'CREDIT', amount: 100 }],
-    });
-    assert.equal(res.status, 400);
-    assert.equal((res.body.error as Rec).code, 'CUSTOMER_REQUIRED_FOR_CREDIT');
-  });
-
-  test('credit charge above the available limit is rejected and rolls back', async () => {
-    server = await startServer();
-    // Nearly exhaust the limit first: available credit becomes 100.
-    creditAccounts[0].outstandingBalance = 99900;
-    const res = await mutate(server.port, adminJar(), 'POST', '/api/sales', {
-      items: [{ productId: 'prod-1', quantity: 2 }],
-      customerId: 'cust-1',
-      payments: [{ paymentMethod: 'CREDIT', amount: 200 }],
-    });
-    assert.equal(res.status, 409);
-    assert.equal((res.body.error as Rec).code, 'CREDIT_LIMIT_EXCEEDED');
-    assert.equal(sales.length, 0, 'no sale persisted');
-    assert.equal(Number(creditAccounts[0].outstandingBalance), 99900, 'balance unchanged');
-  });
-
-  test('credit payment reduces the balance; overpayment is rejected', async () => {
-    server = await startServer();
-
-    const over = await mutate(server.port, adminJar(), 'POST', '/api/customers/cust-1/credit-payments', {
-      amount: 30000,
-      paymentMethod: 'CASH',
-    });
-    assert.equal(over.status, 409);
-    assert.equal((over.body.error as Rec).code, 'PAYMENT_EXCEEDS_BALANCE');
-
-    const ok = await mutate(server.port, adminJar(), 'POST', '/api/customers/cust-1/credit-payments', {
-      amount: 5000,
-      paymentMethod: 'MPESA',
-      reference: 'QWE123',
-    });
-    assert.equal(ok.status, 201, JSON.stringify(ok.body));
-    assert.equal(ok.body.newBalance, '15000.00');
-    assert.equal(Number(creditAccounts[0].outstandingBalance), 15000);
-  });
-
-  test('statement derives debits and credits from source transactions', async () => {
-    server = await startServer();
-    // Create a credit sale of 300, then pay 100.
-    await mutate(server.port, adminJar(), 'POST', '/api/sales', {
-      items: [{ productId: 'prod-1', quantity: 3 }],
-      customerId: 'cust-1',
-      payments: [{ paymentMethod: 'CREDIT', amount: 300 }],
-    });
-    await mutate(server.port, adminJar(), 'POST', '/api/customers/cust-1/credit-payments', {
-      amount: 100,
-      paymentMethod: 'CASH',
-    });
-
-    const res = await request(server.port, adminJar(), 'GET', '/api/customers/cust-1/statement');
-    assert.equal(res.status, 200);
-    const rows = res.body.rows as Array<Rec>;
-    assert.equal(rows.length, 2);
-    // Balances derive purely from source transactions (the seeded 20000
-    // fixture balance predates any ledger entry, so it is not part of the
-    // statement math).
-    assert.equal(rows[0].type, 'SALE_CREDIT');
-    assert.equal(rows[0].debit, '300.00');
-    assert.equal(rows[0].balance, '300.00');
-    assert.equal(rows[1].type, 'PAYMENT');
-    assert.equal(rows[1].credit, '100.00');
-    assert.equal(rows[1].balance, '200.00');
-  });
-});
-
-describe('sales returns', () => {
-  async function createSale(port: number, jar: CookieJar): Promise<Rec> {
-    const res = await mutate(port, jar, 'POST', '/api/sales', {
       items: [{ productId: 'prod-1', quantity: 5 }],
       payments: [{ paymentMethod: 'CASH', amount: 500 }],
     });
     assert.equal(res.status, 201);
-    return res.body.sale as Rec;
-  }
-
-  test('partial GOOD return restores stock at the frozen cost', async () => {
-    server = await startServer();
-    const sale = await createSale(server.port, adminJar());
-    const saleItemId = ((sale.items as Rec[])[0].id) as string;
-
-    const res = await mutate(server.port, adminJar(), 'POST', `/api/sales/${sale.id}/returns`, {
-      items: [{ saleItemId, quantity: 2, condition: 'GOOD' }],
-      reason: 'Wrong size',
-      refundMethod: 'CASH',
-    });
-    assert.equal(res.status, 201, JSON.stringify(res.body));
-    const ret = res.body.return as Rec;
-    assert.equal(ret.totalAmount, '200.00'); // effective price 100 x 2
-
-    const inv = inventories.find((i) => i.productId === 'prod-1');
-    assert.equal(inv?.quantityOnHand, 47); // 45 after sale, +2 back
-
-    const returnTxn = inventoryTransactions.find((t) => t.type === 'SALE_RETURN');
-    assert.equal(String(returnTxn?.unitCost), '60', 'restored at original frozen cost');
-  });
-
-  test('DAMAGED returns never re-enter sellable inventory', async () => {
-    server = await startServer();
-    const sale = await createSale(server.port, adminJar());
-    const saleItemId = ((sale.items as Rec[])[0].id) as string;
-
-    const res = await mutate(server.port, adminJar(), 'POST', `/api/sales/${sale.id}/returns`, {
-      items: [{ saleItemId, quantity: 1, condition: 'DAMAGED' }],
-      reason: 'Broken casing',
-      refundMethod: 'CASH',
-    });
-    assert.equal(res.status, 201);
-    const inv = inventories.find((i) => i.productId === 'prod-1');
-    assert.equal(inv?.quantityOnHand, 45, 'stock not restored');
-  });
-
-  test('cannot return more than was sold', async () => {
-    server = await startServer();
-    const sale = await createSale(server.port, adminJar());
-    const saleItemId = ((sale.items as Rec[])[0].id) as string;
-
-    const res = await mutate(server.port, adminJar(), 'POST', `/api/sales/${sale.id}/returns`, {
-      items: [{ saleItemId, quantity: 6 }],
-      reason: 'Over-return attempt',
-      refundMethod: 'CASH',
-    });
-    assert.equal(res.status, 409);
-    assert.equal((res.body.error as Rec).code, 'RETURN_EXCEEDS_RETURNABLE');
-  });
-
-  test('cumulative returns across multiple returns are capped', async () => {
-    server = await startServer();
-    const sale = await createSale(server.port, adminJar());
-    const saleItemId = ((sale.items as Rec[])[0].id) as string;
-
-    const first = await mutate(server.port, adminJar(), 'POST', `/api/sales/${sale.id}/returns`, {
-      items: [{ saleItemId, quantity: 3 }],
-      reason: 'First return',
-      refundMethod: 'CASH',
-    });
-    assert.equal(first.status, 201);
-
-    const second = await mutate(server.port, adminJar(), 'POST', `/api/sales/${sale.id}/returns`, {
-      items: [{ saleItemId, quantity: 3 }],
-      reason: 'Second return exceeds remaining',
-      refundMethod: 'CASH',
-    });
-    assert.equal(second.status, 409);
-
-    const exact = await mutate(server.port, adminJar(), 'POST', `/api/sales/${sale.id}/returns`, {
-      items: [{ saleItemId, quantity: 2 }],
-      reason: 'Remaining units',
-      refundMethod: 'CASH',
-    });
-    assert.equal(exact.status, 201);
-  });
-
-  test('return from a credit sale adjusts the outstanding balance', async () => {
-    server = await startServer();
-    const res = await mutate(server.port, adminJar(), 'POST', '/api/sales', {
-      items: [{ productId: 'prod-1', quantity: 4 }],
-      customerId: 'cust-1',
-      payments: [{ paymentMethod: 'CREDIT', amount: 400 }],
-    });
-    assert.equal(res.status, 201);
     const sale = res.body.sale as Rec;
-    const saleItemId = ((sale.items as Rec[])[0].id) as string;
-
-    const ret = await mutate(server.port, adminJar(), 'POST', `/api/sales/${sale.id}/returns`, {
-      items: [{ saleItemId, quantity: 2, condition: 'GOOD' }],
-      reason: 'Customer changed mind',
-      creditAdjusted: true,
-    });
-    assert.equal(ret.status, 201, JSON.stringify(ret.body));
-    assert.equal(Number(creditAccounts[0].outstandingBalance), 20200); // 20600 - 400... wait: 20000+400=20400-200=20200
-  });
-
-  test('exactly one settlement path must be chosen', async () => {
-    server = await startServer();
-    const sale = await createSale(server.port, adminJar());
-    const saleItemId = ((sale.items as Rec[])[0].id) as string;
-
-    const both = await mutate(server.port, adminJar(), 'POST', `/api/sales/${sale.id}/returns`, {
-      items: [{ saleItemId, quantity: 1 }],
-      reason: 'Ambiguous settlement',
-      creditAdjusted: true,
-      refundMethod: 'CASH',
-    });
-    assert.equal(both.status, 400);
-
-    const neither = await mutate(server.port, adminJar(), 'POST', `/api/sales/${sale.id}/returns`, {
-      items: [{ saleItemId, quantity: 1 }],
-      reason: 'No settlement',
-    });
-    assert.equal(neither.status, 400);
-  });
-
-  test('ASSISTANT cannot process returns', async () => {
-    server = await startServer();
-    const sale = await createSale(server.port, adminJar());
-    const saleItemId = ((sale.items as Rec[])[0].id) as string;
-
-    const res = await mutate(server.port, assistantJar(), 'POST', `/api/sales/${sale.id}/returns`, {
-      items: [{ saleItemId, quantity: 1 }],
-      reason: 'Not authorized',
-      refundMethod: 'CASH',
-    });
-    assert.equal(res.status, 403);
-  });
-});
-
-describe('sale voiding', () => {
-  test('void restores stock, reverses credit and marks the sale VOID', async () => {
-    server = await startServer();
-    const res = await mutate(server.port, adminJar(), 'POST', '/api/sales', {
-      items: [{ productId: 'prod-1', quantity: 5 }],
-      customerId: 'cust-1',
-      payments: [{ paymentMethod: 'CREDIT', amount: 500 }],
-    });
-    assert.equal(res.status, 201);
-    const sale = res.body.sale as Rec;
-    assert.equal(Number(creditAccounts[0].outstandingBalance), 20500);
 
     const voidRes = await mutate(server.port, adminJar(), 'POST', `/api/sales/${sale.id}/void`, {
       reason: 'Entered wrong quantity',
     });
     assert.equal(voidRes.status, 200, JSON.stringify(voidRes.body));
-    assert.equal(voidRes.body.creditReversed, '500.00');
-    assert.equal(voidRes.body.refundDue, '0.00');
 
     assert.equal(inventories.find((i) => i.productId === 'prod-1')?.quantityOnHand, 50);
-    assert.equal(Number(creditAccounts[0].outstandingBalance), 20000);
 
     const detail = await request(server.port, adminJar(), 'GET', `/api/sales/${sale.id}`);
     assert.equal((detail.body.sale as Rec).status, 'VOID');
@@ -1059,45 +823,6 @@ describe('expenses', () => {
 });
 
 describe('customers & authorization', () => {
-  test('customer CRUD works and deactivation is blocked with outstanding credit', async () => {
-    server = await startServer();
-
-    const created = await mutate(server.port, adminJar(), 'POST', '/api/customers', {
-      name: 'Garage X',
-      phone: '+255700111222',
-      type: 'GARAGE',
-    });
-    assert.equal(created.status, 201, JSON.stringify(created.body));
-    const customer = created.body.customer as Rec;
-
-    const blocked = await mutate(server.port, adminJar(), 'PATCH', `/api/customers/cust-1/status`, {
-      status: 'INACTIVE',
-    });
-    assert.equal(blocked.status, 409);
-    assert.equal((blocked.body.error as Rec).code, 'CUSTOMER_HAS_OUTSTANDING_CREDIT');
-
-    const deactivated = await mutate(server.port, adminJar(), 'PATCH', `/api/customers/${customer.id}/status`, {
-      status: 'INACTIVE',
-    });
-    assert.equal(deactivated.status, 200);
-  });
-
-  test('ASSISTANT cannot create customers, open credit accounts or record credit payments', async () => {
-    server = await startServer();
-
-    const cust = await mutate(server.port, assistantJar(), 'POST', '/api/customers', { name: 'Nope' });
-    assert.equal(cust.status, 403);
-
-    const acc = await mutate(server.port, assistantJar(), 'POST', '/api/customers/cust-1/credit-account', {});
-    assert.equal(acc.status, 403);
-
-    const pay = await mutate(server.port, assistantJar(), 'POST', '/api/customers/cust-1/credit-payments', {
-      amount: 10,
-      paymentMethod: 'CASH',
-    });
-    assert.equal(pay.status, 403);
-  });
-
   test('ASSISTANT cannot see COGS/profit on sale details', async () => {
     server = await startServer();
     const created = await mutate(server.port, adminJar(), 'POST', '/api/sales', {
@@ -1113,6 +838,6 @@ describe('customers & authorization', () => {
     const seen = assistantView.body.sale as Rec;
     assert.ok(!('cogs' in seen));
     assert.ok(!('grossProfit' in seen));
-    assert.ok(!('unitCost' in ((seen.items as Rec[])[0])));
+    assert.ok(!('unitCost' in ((seen.items as Rec[])[0]!)));
   });
 });

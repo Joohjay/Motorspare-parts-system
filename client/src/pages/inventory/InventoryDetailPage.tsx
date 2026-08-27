@@ -4,7 +4,6 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Field, FormError, SelectInput, TextArea, TextInput, errorMessage } from '@/components/ui/FormControls';
 import { Modal } from '@/components/ui/Modal';
 import { PaginationControls } from '@/components/ui/PaginationControls';
@@ -22,7 +21,6 @@ import type {
   InventoryDetail,
   InventoryTransaction,
   ProductDetail,
-  StockReservation,
 } from '@/types/api';
 
 const PAGE_SIZE = 25;
@@ -37,7 +35,7 @@ function formatSigned(value: number): string {
   return value > 0 ? `+${formatted}` : value < 0 ? `-${formatted}` : '0';
 }
 
-type MovementFilter = '' | 'in' | 'out' | 'reservation';
+type MovementFilter = '' | 'in' | 'out';
 
 export function InventoryDetailPage() {
   const { productId = '' } = useParams<{ productId: string }>();
@@ -64,19 +62,6 @@ export function InventoryDetailPage() {
   const [adjustBusy, setAdjustBusy] = useState(false);
   const [adjustError, setAdjustError] = useState<string | null>(null);
   const [adjustSuccess, setAdjustSuccess] = useState<string | null>(null);
-
-  const [reserveOpen, setReserveOpen] = useState(false);
-  const [reserveQty, setReserveQty] = useState('');
-  const [reserveUntil, setReserveUntil] = useState('');
-  const [reserveNote, setReserveNote] = useState('');
-  const [reserveBusy, setReserveBusy] = useState(false);
-  const [reserveError, setReserveError] = useState<string | null>(null);
-
-  const [reservations, setReservations] = useState<StockReservation[] | null>(null);
-  const [reservationsError, setReservationsError] = useState<string | null>(null);
-  const [releaseTarget, setReleaseTarget] = useState<StockReservation | null>(null);
-  const [releaseBusy, setReleaseBusy] = useState(false);
-  const [releaseError, setReleaseError] = useState<string | null>(null);
 
   const loadInventory = useCallback(() => {
     let active = true;
@@ -141,24 +126,6 @@ export function InventoryDetailPage() {
     };
   }, [productId, txnType, movement, txnPage, reloadTick]);
 
-  useEffect(() => {
-    let active = true;
-    setReservationsError(null);
-    inventoryApi
-      .reservations({ productId, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })
-      .then((data) => {
-        if (!active) return;
-        setReservations(data.items);
-      })
-      .catch((err: unknown) => {
-        if (!active) return;
-        setReservationsError(errorMessage(err, 'Unable to load reservations.'));
-      });
-    return () => {
-      active = false;
-    };
-  }, [productId, reloadTick]);
-
   function refreshAll() {
     setTxnPage(1);
     setReloadTick((t) => t + 1);
@@ -201,61 +168,6 @@ export function InventoryDetailPage() {
     }
   }
 
-  const reserveQtyNum = Number(reserveQty);
-  const reserveValid =
-    Number.isInteger(reserveQtyNum) &&
-    reserveQtyNum > 0 &&
-    inventory !== null &&
-    reserveQtyNum <= inventory.available;
-
-  async function submitReserve() {
-    if (!inventory || !reserveValid) return;
-    setReserveBusy(true);
-    setReserveError(null);
-    try {
-      await inventoryApi.reserve({
-        productId: inventory.productId,
-        quantity: reserveQtyNum,
-        reservedUntil: reserveUntil || null,
-        note: reserveNote.trim() || null,
-      });
-      setReserveOpen(false);
-      setReserveQty('');
-      setReserveUntil('');
-      setReserveNote('');
-      setAdjustSuccess('Reservation created. Available stock updated.');
-      refreshAll();
-    } catch (err) {
-      setReserveError(
-        err instanceof ApiClientError
-          ? err.message
-          : 'Unable to create reservation. Please try again.',
-      );
-    } finally {
-      setReserveBusy(false);
-    }
-  }
-
-  async function release() {
-    if (!releaseTarget) return;
-    setReleaseBusy(true);
-    setReleaseError(null);
-    try {
-      await inventoryApi.release(releaseTarget.id);
-      setReleaseTarget(null);
-      setAdjustSuccess('Reservation released. Stock is available again.');
-      refreshAll();
-    } catch (err) {
-      setReleaseError(
-        err instanceof ApiClientError
-          ? err.message
-          : 'Unable to release reservation. Please try again.',
-      );
-    } finally {
-      setReleaseBusy(false);
-    }
-  }
-
   const statRow = (label: string, value: string, emphasize = false) => (
     <div className="flex items-center justify-between border-b border-slate-100 py-2 last:border-0">
       <dt className="text-sm text-slate-500">{label}</dt>
@@ -267,7 +179,7 @@ export function InventoryDetailPage() {
 
   const movementLabel = useMemo(() => {
     if (!movement) return '';
-    return movement === 'reservation' ? 'Reservation only' : `${movement === 'in' ? 'Stock in' : 'Stock out'} only`;
+    return movement === 'in' ? 'Stock in only' : 'Stock out only';
   }, [movement]);
 
   return (
@@ -288,15 +200,11 @@ export function InventoryDetailPage() {
             <p className="mt-1 text-sm text-slate-500">
               <span className="font-mono text-xs">{inventory.sku}</span>
               {inventory.brandName ? ` · ${inventory.brandName}` : ''}
-              {inventory.categoryName ? ` · ${inventory.categoryName}` : ''}
             </p>
           )}
         </div>
         {isAdmin && inventory && (
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setReserveOpen(true)}>
-              Reserve stock
-            </Button>
             <Button onClick={() => setAdjustOpen(true)}>Adjust stock</Button>
           </div>
         )}
@@ -325,7 +233,6 @@ export function InventoryDetailPage() {
               </h2>
               <dl className="mt-4">
                 {statRow('On hand', formatQuantity(inventory.quantityOnHand), true)}
-                {statRow('Reserved', formatQuantity(inventory.quantityReserved))}
                 {statRow('Available', formatQuantity(inventory.available), true)}
                 {statRow('Weighted avg. cost', formatCurrency(inventory.weightedAverageCost))}
                 {statRow('Inventory value', formatCurrency(inventory.inventoryValue), true)}
@@ -340,59 +247,6 @@ export function InventoryDetailPage() {
                 <StockStatusPill status={inventory.status} />
               </div>
             </Card>
-
-            {isAdmin && (
-              <Card className="p-6">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                  Reservations
-                </h2>
-                {reservationsError ? (
-                  <p className="mt-3 text-sm text-red-600">{reservationsError}</p>
-                ) : reservations === null ? (
-                  <div className="mt-3 flex justify-center py-4">
-                    <Spinner />
-                  </div>
-                ) : reservations.length === 0 ? (
-                  <p className="mt-3 text-sm text-slate-500">No reservations for this product.</p>
-                ) : (
-                  <ul className="mt-3 divide-y divide-slate-100">
-                    {reservations.map((r) => (
-                      <li key={r.id} className="flex items-center justify-between gap-3 py-2">
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">{formatQuantity(r.quantity)} units</p>
-                          <p className="text-xs text-slate-500">
-                            {r.createdBy ? r.createdBy.fullName : 'Unknown user'} · {formatDateTime(r.createdAt)}
-                          </p>
-                          {r.reservedUntil && (
-                            <p className="text-xs text-slate-400">Until {formatDateTime(r.reservedUntil)}</p>
-                          )}
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
-                              r.status === 'ACTIVE'
-                                ? 'bg-amber-50 text-amber-700 ring-amber-200'
-                                : 'bg-slate-100 text-slate-500 ring-slate-200'
-                            }`}
-                          >
-                            {r.status}
-                          </span>
-                          {r.status === 'ACTIVE' && (
-                            <button
-                              type="button"
-                              className="text-xs font-medium text-brand-600 hover:text-brand-500"
-                              onClick={() => setReleaseTarget(r)}
-                            >
-                              Release
-                            </button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
-            )}
           </div>
 
           <Card className="p-6 lg:col-span-2">
@@ -438,7 +292,6 @@ export function InventoryDetailPage() {
                     <option value="">All movements</option>
                     <option value="in">Stock in</option>
                     <option value="out">Stock out</option>
-                    <option value="reservation">Reservations</option>
                   </SelectInput>
                 </div>
               </div>
@@ -613,88 +466,6 @@ export function InventoryDetailPage() {
             </div>
           </form>
         </Modal>
-      )}
-
-      {reserveOpen && inventory && (
-        <Modal title="Reserve stock" onClose={() => setReserveOpen(false)}>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void submitReserve();
-            }}
-          >
-            <div className="space-y-4">
-              <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                {inventory.name} — <span className="font-medium">{formatQuantity(inventory.available)}</span> units available
-              </p>
-              <Field label="Quantity" htmlFor="reserve-qty" required hint="Cannot exceed available stock.">
-                <TextInput
-                  id="reserve-qty"
-                  type="number"
-                  step="1"
-                  inputMode="numeric"
-                  autoFocus
-                  value={reserveQty}
-                  onChange={(e) => setReserveQty(e.target.value)}
-                  aria-invalid={reserveQty !== '' && (!Number.isInteger(reserveQtyNum) || reserveQtyNum > inventory.available)}
-                />
-                {reserveQtyNum > 0 && reserveQtyNum > inventory.available && (
-                  <p className="mt-1 text-xs text-red-600" role="alert">
-                    Only {formatQuantity(inventory.available)} units are available.
-                  </p>
-                )}
-              </Field>
-              <Field label="Reserved until" htmlFor="reserve-until" hint="Optional. Leave blank for no expiry.">
-                <TextInput
-                  id="reserve-until"
-                  type="datetime-local"
-                  value={reserveUntil}
-                  onChange={(e) => setReserveUntil(e.target.value)}
-                />
-              </Field>
-              <Field label="Note" htmlFor="reserve-note" hint="Optional.">
-                <TextInput
-                  id="reserve-note"
-                  value={reserveNote}
-                  onChange={(e) => setReserveNote(e.target.value)}
-                />
-              </Field>
-              <FormError message={reserveError} />
-              <div className="flex justify-end gap-3">
-                <Button variant="secondary" type="button" disabled={reserveBusy} onClick={() => setReserveOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={!reserveValid || reserveBusy}>
-                  {reserveBusy ? (
-                    <>
-                      <Spinner /> Reserving…
-                    </>
-                  ) : (
-                    'Create reservation'
-                  )}
-                </Button>
-              </div>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {releaseTarget && (
-        <ConfirmDialog
-          title="Release reservation"
-          message={`Release the reservation of ${formatQuantity(releaseTarget.quantity)} units for ${releaseTarget.product.name}? The stock will become available again.`}
-          confirmLabel="Release reservation"
-          busyLabel="Releasing…"
-          busy={releaseBusy}
-          onConfirm={() => void release()}
-          onCancel={() => setReleaseTarget(null)}
-        />
-      )}
-
-      {releaseError && (
-        <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-          {releaseError}
-        </p>
       )}
     </div>
   );

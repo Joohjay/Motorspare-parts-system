@@ -15,10 +15,8 @@ const TYPE_LABELS: Record<string, string> = {
   GENERAL: 'General',
   LOW_STOCK: 'Low stock',
   OUT_OF_STOCK: 'Out of stock',
-  CUSTOMER_CREDIT_DUE: 'Customer credit due',
   SUPPLIER_PAYMENT_DUE: 'Supplier payment due',
   PURCHASE_ORDER_PENDING: 'Purchase order pending',
-  RESERVATION_PENDING: 'Reservation pending',
 };
 
 export function NotificationsPage(): ReactElement {

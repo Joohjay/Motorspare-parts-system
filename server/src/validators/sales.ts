@@ -1,4 +1,4 @@
-import { CustomerStatus, CustomerType, PaymentMethod, ReturnCondition, SaleStatus, SaleType } from '@prisma/client';
+import { PaymentMethod, SaleStatus, SaleType } from '@prisma/client';
 import { z } from 'zod';
 
 import {
@@ -37,62 +37,6 @@ const isoDate = z
   .refine((value) => !Number.isNaN(Date.parse(value)), 'Invalid date');
 
 // ---------------------------------------------------------------------------
-// Customers
-// ---------------------------------------------------------------------------
-
-export const customerCreateSchema = z.object({
-  name: z.string().trim().min(1, 'Customer name is required').max(120),
-  phone: z.string().trim().max(40).optional().nullable(),
-  email: z.string().trim().email('Invalid email').max(160).optional().nullable(),
-  address: z.string().trim().max(300).optional().nullable(),
-  notes: optionalText,
-  type: z.nativeEnum(CustomerType).default(CustomerType.RETAIL),
-});
-
-export const customerUpdateSchema = customerCreateSchema.partial();
-
-export const customerStatusSchema = z.object({
-  status: z.nativeEnum(CustomerStatus),
-});
-
-export const customerListQuery = z.object({
-  q: z.string().trim().max(120).optional(),
-  status: z.nativeEnum(CustomerStatus).optional(),
-  type: z.nativeEnum(CustomerType).optional(),
-  ...sortSchema(['name', 'phone', 'type', 'status', 'createdAt', 'updatedAt'], 'name'),
-  page: page.default(1),
-  pageSize: pageSize.default(DEFAULT_PAGE_SIZE),
-});
-
-// ---------------------------------------------------------------------------
-// Customer credit
-// ---------------------------------------------------------------------------
-
-export const creditLimitSchema = z.object({
-  creditLimit: money,
-});
-
-export const customerCreditPaymentCreateSchema = z.object({
-  amount: positiveMoney,
-  paymentMethod: z.nativeEnum(PaymentMethod),
-  reference: z.string().trim().max(120).optional().nullable(),
-  paidAt: isoDate.optional(),
-});
-
-export const creditPaymentsListQuery = z.object({
-  from: isoDate.optional(),
-  to: isoDate.optional(),
-  ...sortSchema(['paidAt', 'amount'], 'paidAt'),
-  page: page.default(1),
-  pageSize: pageSize.default(DEFAULT_PAGE_SIZE),
-});
-
-export const statementQuery = z.object({
-  from: isoDate.optional(),
-  to: isoDate.optional(),
-});
-
-// ---------------------------------------------------------------------------
 // Sales / POS
 // ---------------------------------------------------------------------------
 
@@ -118,7 +62,6 @@ const paymentAllocationInput = z
 export const saleCreateSchema = z
   .object({
     items: z.array(saleItemInput).min(1, 'A sale needs at least one item').max(100),
-    customerId: idString.optional().nullable(),
     saleType: z.nativeEnum(SaleType).default(SaleType.RETAIL),
     // Sale-level discount applied after line totals.
     discount: money.optional().default(0),
@@ -133,7 +76,6 @@ export const saleVoidSchema = z.object({
 
 export const saleListQuery = z.object({
   q: z.string().trim().max(64).optional(), // sale number search
-  customerId: idString.optional(),
   status: z.nativeEnum(SaleStatus).optional(),
   saleType: z.nativeEnum(SaleType).optional(),
   paymentMethod: z.nativeEnum(PaymentMethod).optional(),
@@ -141,49 +83,6 @@ export const saleListQuery = z.object({
   from: isoDate.optional(),
   to: isoDate.optional(),
   ...sortSchema(['saleNumber', 'totalAmount', 'createdAt'], 'createdAt'),
-  page: page.default(1),
-  pageSize: pageSize.default(DEFAULT_PAGE_SIZE),
-});
-
-// ---------------------------------------------------------------------------
-// Sales returns
-// ---------------------------------------------------------------------------
-
-export const saleReturnCreateSchema = z
-  .object({
-    items: z
-      .array(
-        z
-          .object({
-            saleItemId: idString,
-            quantity: positiveQuantity,
-            condition: z.nativeEnum(ReturnCondition).default(ReturnCondition.GOOD),
-          })
-          .strict(),
-      )
-      .min(1, 'A return needs at least one item')
-      .max(100),
-    reason: z.string().trim().min(3, 'A return reason is required').max(500),
-    // Exactly one settlement path must be chosen:
-    //  - creditAdjusted: reduce the customer's outstanding balance
-    //  - refundMethod: money back via the given channel
-    creditAdjusted: z.boolean().optional().default(false),
-    refundMethod: z.nativeEnum(PaymentMethod).optional(),
-    refundReference: z.string().trim().max(120).optional().nullable(),
-  })
-  .strict()
-  .refine((data) => data.creditAdjusted !== (data.refundMethod !== undefined), {
-    message: 'Choose exactly one refund method: credit adjustment or a refund payment method',
-    path: ['refundMethod'],
-  });
-
-export const saleReturnListQuery = z.object({
-  q: z.string().trim().max(64).optional(), // return number search
-  saleId: idString.optional(),
-  customerId: idString.optional(),
-  from: isoDate.optional(),
-  to: isoDate.optional(),
-  ...sortSchema(['returnNumber', 'totalAmount', 'returnDate'], 'returnDate'),
   page: page.default(1),
   pageSize: pageSize.default(DEFAULT_PAGE_SIZE),
 });

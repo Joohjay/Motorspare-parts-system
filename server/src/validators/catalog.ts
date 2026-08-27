@@ -39,27 +39,6 @@ export const namedListQuery = z.object({
   pageSize: pageSize.default(DEFAULT_PAGE_SIZE),
 });
 
-export const categoryListQuery = z.object({
-  q: z.string().trim().max(120).optional(),
-  status: statusSchema.optional(),
-  parentId: z.string().min(1).max(128).optional(),
-  ...sortSchema(['name', 'createdAt', 'updatedAt'], 'name'),
-  page: page.default(1),
-  pageSize: pageSize.default(DEFAULT_PAGE_SIZE),
-});
-
-export const categoryCreateSchema = z.object({
-  name: nameField,
-  parentId: z.string().min(1).max(128).optional().nullable(),
-  description: descriptionField.optional().nullable(),
-});
-
-export const categoryUpdateSchema = z.object({
-  name: nameField.optional(),
-  parentId: z.string().min(1).max(128).optional().nullable(),
-  description: descriptionField.optional().nullable(),
-});
-
 export const brandCreateSchema = z.object({
   name: nameField,
 });

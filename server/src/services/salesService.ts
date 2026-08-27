@@ -8,7 +8,6 @@ import { recordAudit } from '../utils/audit.js';
 import { paginate } from '../utils/pagination.js';
 import { nextDocumentNumber } from '../utils/documentNumber.js';
 import { decreaseStockTx, increaseStockTx } from './inventoryService.js';
-import { chargeCreditTx } from './customerCreditService.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -154,7 +153,7 @@ async function priceLines(
 /**
  * Creates a completed sale atomically:
  *   document number -> sale -> items -> inventory deduction (frozen COGS)
- *   -> payment allocations -> customer credit charge -> (audit after commit).
+ *   -> payment allocations -> (audit after commit).
  *
  * Stock rows are locked in deterministic (productId) order to avoid
  * deadlocks between concurrent multi-item sales. Any failure rolls back
@@ -163,7 +162,6 @@ async function priceLines(
 export async function createSale(
   body: {
     items: ItemInput[];
-    customerId?: string | null;
     saleType?: 'RETAIL' | 'WHOLESALE';
     discount?: number;
     notes?: string | null;
@@ -196,13 +194,11 @@ export async function createSale(
     );
   }
 
-  const creditAllocations = allocations.filter((p) => p.paymentMethod === PaymentMethod.CREDIT);
-  const customerId = body.customerId ?? null;
-  if (creditAllocations.length > 0 && !customerId) {
+  if (allocations.some((p) => p.paymentMethod === PaymentMethod.CREDIT)) {
     throw new ApiError(
       400,
-      'CUSTOMER_REQUIRED_FOR_CREDIT',
-      'A registered customer is required for credit sales',
+      'PAYMENT_METHOD_UNAVAILABLE',
+      'Credit payments are no longer available',
     );
   }
 
@@ -210,18 +206,9 @@ export async function createSale(
   const result = await prisma.$transaction(async (tx) => {
     const saleNumber = await nextDocumentNumber(tx, DocumentType.SALE);
 
-    if (customerId) {
-      const customer = await tx.customer.findUnique({ where: { id: customerId } });
-      if (!customer) throw ApiError.notFound('Customer not found');
-      if (customer.status !== 'ACTIVE') {
-        throw new ApiError(409, 'CUSTOMER_INACTIVE', 'Customer is not active');
-      }
-    }
-
     const sale = await tx.sale.create({
       data: {
         saleNumber,
-        customerId,
         saleType,
         status: SaleStatus.COMPLETED,
         subtotal,
@@ -280,18 +267,7 @@ export async function createSale(
       });
     }
 
-    // Charge credit portions against the customer's account (limit enforced
-    // server-side under the account row lock).
-    let creditBalanceAfter: Prisma.Decimal | null = null;
-    for (const allocation of creditAllocations) {
-      creditBalanceAfter = await chargeCreditTx(tx, {
-        customerId: customerId!,
-        amount: allocation.amountDecimal,
-        saleNumber,
-      });
-    }
-
-    return { sale, cogsTotal, creditBalanceAfter };
+    return { sale, cogsTotal };
   });
 
   audit({
@@ -304,8 +280,6 @@ export async function createSale(
       discount: Number(saleDiscount),
       cogs: Number(result.cogsTotal),
       hasPriceOverride: lines.some((line) => line.priceOverridden),
-      creditCharged: creditAllocations.reduce((sum, p) => sum.add(p.amountDecimal), decimal(0)).toNumber(),
-      creditBalanceAfter: result.creditBalanceAfter ? Number(result.creditBalanceAfter) : null,
     },
     context,
   });
@@ -319,9 +293,7 @@ async function fetchSale(saleId: string) {
     include: {
       items: { include: { product: { select: { id: true, sku: true, name: true } } } },
       payments: true,
-      customer: { select: { id: true, name: true, phone: true, type: true } },
       createdBy: { select: { id: true, fullName: true } },
-      returns: { select: { id: true, returnNumber: true, status: true, totalAmount: true } },
     },
   });
   if (!sale) throw ApiError.notFound('Sale not found');
@@ -340,8 +312,6 @@ export function buildSaleDetail(sale: Awaited<ReturnType<typeof fetchSale>>, inc
   const base = {
     id: sale.id,
     saleNumber: sale.saleNumber,
-    customerId: sale.customerId,
-    customer: sale.customer,
     saleType: sale.saleType,
     status: sale.status,
     subtotal: sale.subtotal.toFixed(2),
@@ -370,7 +340,6 @@ export function buildSaleDetail(sale: Awaited<ReturnType<typeof fetchSale>>, inc
       reference: payment.reference,
       paidAt: payment.paidAt,
     })),
-    returns: sale.returns,
     paidAmount: paid.toFixed(2),
     creditAmount: creditPortion.toFixed(2),
   };
@@ -398,7 +367,6 @@ export async function getSale(saleId: string, viewerRole: 'ADMIN' | 'ASSISTANT')
 export async function listSales(
   query: {
     q?: string;
-    customerId?: string;
     status?: 'COMPLETED' | 'VOID';
     saleType?: 'RETAIL' | 'WHOLESALE';
     paymentMethod?: PaymentMethod;
@@ -416,7 +384,6 @@ export async function listSales(
 
   const where: Prisma.SaleWhereInput = {};
   if (query.q) where.saleNumber = { contains: query.q, mode: 'insensitive' };
-  if (query.customerId) where.customerId = query.customerId;
   if (query.status) where.status = query.status;
   if (query.saleType) where.saleType = query.saleType;
   if (query.createdById) where.createdById = query.createdById;
@@ -437,7 +404,6 @@ export async function listSales(
     prisma.sale.findMany({
       where,
       include: {
-        customer: { select: { id: true, name: true } },
         createdBy: { select: { id: true, fullName: true } },
         _count: { select: { items: true } },
       },
@@ -450,8 +416,6 @@ export async function listSales(
   const items = rows.map((sale) => ({
     id: sale.id,
     saleNumber: sale.saleNumber,
-    customerId: sale.customerId,
-    customerName: sale.customer?.name ?? null,
     saleType: sale.saleType,
     status: sale.status,
     totalAmount: sale.totalAmount.toFixed(2),
@@ -472,9 +436,6 @@ export async function listSales(
  * Voids a sale (ADMIN-only, route-enforced). Atomically:
  *   - restores every sold item to inventory at its frozen historical cost
  *     (ledger type ADJUSTMENT referencing the sale),
- *   - reverses CREDIT portions against the customer's account (clamped at a
- *     zero balance; any uncollectable remainder is reported as refundDue for
- *     manual settlement — the customer may already have paid part of it),
  *   - marks the sale VOID with the reason appended to its notes.
  *
  * Cash/mobile-money refunds are settled physically by the shop; the audit
@@ -487,11 +448,11 @@ export async function voidSale(
 ) {
   const result = await prisma.$transaction(async (tx) => {
     // Lock the sale row to prevent concurrent voids from both seeing COMPLETED
-    // and double-restoring stock / double-reversing credit.
+    // and double-restoring stock.
     await tx.$queryRaw`SELECT id FROM "sales" WHERE id = ${saleId} FOR UPDATE`;
     const sale = await tx.sale.findUnique({
       where: { id: saleId },
-      include: { items: true, payments: true },
+      include: { items: true },
     });
     if (!sale) throw ApiError.notFound('Sale not found');
     if (sale.status !== SaleStatus.COMPLETED) {
@@ -512,29 +473,6 @@ export async function voidSale(
       });
     }
 
-    // Reverse credit portions.
-    let refundDue = decimal(0);
-    const creditPayments = sale.payments.filter((p) => p.paymentMethod === PaymentMethod.CREDIT);
-    if (creditPayments.length > 0 && sale.customerId) {
-      const creditTotal = creditPayments.reduce((sum, p) => sum.add(p.amount), decimal(0));
-      const rows = await tx.$queryRaw<Array<{ id: string; outstandingBalance: Prisma.Decimal | string }>>(
-        Prisma.sql`
-          SELECT "id", "outstandingBalance" FROM "customer_credit_accounts"
-          WHERE "customerId" = ${sale.customerId}
-          FOR UPDATE
-        `,
-      );
-      if (rows[0]) {
-        const balance = decimal(rows[0].outstandingBalance);
-        const reversal = creditTotal.lessThanOrEqualTo(balance) ? creditTotal : balance;
-        refundDue = creditTotal.sub(reversal);
-        await tx.customerCreditAccount.update({
-          where: { id: rows[0].id },
-          data: { outstandingBalance: balance.sub(reversal) },
-        });
-      }
-    }
-
     const updated = await tx.sale.update({
       where: { id: sale.id },
       data: {
@@ -543,7 +481,7 @@ export async function voidSale(
       },
     });
 
-    return { sale: updated, refundDue, creditReversed: creditPayments.reduce((sum, p) => sum.add(p.amount), decimal(0)) };
+    return { sale: updated };
   });
 
   audit({
@@ -554,15 +492,11 @@ export async function voidSale(
     afterState: {
       status: SaleStatus.VOID,
       reason,
-      creditReversed: Number(result.creditReversed),
-      refundDue: Number(result.refundDue),
     },
     context,
   });
 
   return {
     sale: { id: result.sale.id, saleNumber: result.sale.saleNumber, status: result.sale.status },
-    creditReversed: result.creditReversed.toFixed(2),
-    refundDue: result.refundDue.toFixed(2),
   };
 }

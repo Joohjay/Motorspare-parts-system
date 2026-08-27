@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { useAuth } from '@/auth/AuthContext';
-import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import {
   EmptyState,
@@ -14,11 +12,10 @@ import {
 } from '@/components/ui/FormControls';
 import { PaginationControls } from '@/components/ui/PaginationControls';
 import { StockStatusPill } from '@/components/ui/StockStatusPill';
-import { brandsApi, categoriesApi, motorcyclesApi } from '@/lib/catalogApi';
+import { brandsApi, motorcyclesApi } from '@/lib/catalogApi';
 import { formatCurrency, formatQuantity, inventoryApi } from '@/lib/inventoryApi';
 import type {
   Brand,
-  Category,
   InventoryListItem,
   MotorcycleMake,
   MotorcycleModel,
@@ -32,7 +29,6 @@ const SORTABLE = new Set([
   'name',
   'sku',
   'quantityOnHand',
-  'quantityReserved',
   'available',
   'weightedAverageCost',
   'inventoryValue',
@@ -43,7 +39,6 @@ type SortField =
   | 'name'
   | 'sku'
   | 'quantityOnHand'
-  | 'quantityReserved'
   | 'available'
   | 'weightedAverageCost'
   | 'inventoryValue'
@@ -88,12 +83,8 @@ function SortHeader({
 type StockFilter = '' | StockStatus;
 
 export function InventoryPage() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
-
   const [q, setQ] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('');
-  const [categoryId, setCategoryId] = useState('');
   const [brandId, setBrandId] = useState('');
   const [makeId, setMakeId] = useState('');
   const [modelId, setModelId] = useState('');
@@ -108,7 +99,6 @@ export function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [makes, setMakes] = useState<MotorcycleMake[]>([]);
   const [models, setModels] = useState<MotorcycleModel[]>([]);
@@ -122,7 +112,6 @@ export function InventoryPage() {
       .list({
         q: q || undefined,
         stockStatus: stockFilter || undefined,
-        categoryId: categoryId || undefined,
         brandId: brandId || undefined,
         makeId: makeId || undefined,
         modelId: modelId || undefined,
@@ -147,18 +136,16 @@ export function InventoryPage() {
     return () => {
       active = false;
     };
-  }, [q, stockFilter, categoryId, brandId, makeId, modelId, variantId, sortBy, sortOrder, page]);
+  }, [q, stockFilter, brandId, makeId, modelId, variantId, sortBy, sortOrder, page]);
 
   useEffect(() => {
     let active = true;
     void Promise.all([
-      categoriesApi.list({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' }),
       brandsApi.list({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' }),
       motorcyclesApi.listMakes({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' }),
     ])
-      .then(([catData, brandData, makeData]) => {
+      .then(([brandData, makeData]) => {
         if (!active) return;
-        setCategories(catData.items);
         setBrands(brandData.items);
         setMakes(makeData.items);
       })
@@ -239,11 +226,6 @@ export function InventoryPage() {
             Stock levels, weighted-average cost, and movement history for every part.
           </p>
         </div>
-        {isAdmin && (
-          <Link to="/inventory/reservations">
-            <Button variant="secondary">Manage reservations</Button>
-          </Link>
-        )}
       </div>
 
       <Card className="p-4">
@@ -278,26 +260,6 @@ export function InventoryPage() {
               <option value="HEALTHY">Healthy</option>
               <option value="LOW_STOCK">Low stock</option>
               <option value="OUT_OF_STOCK">Out of stock</option>
-            </SelectInput>
-          </div>
-          <div>
-            <label htmlFor="inventory-category" className="block text-sm font-medium text-slate-700">
-              Category
-            </label>
-            <SelectInput
-              id="inventory-category"
-              value={categoryId}
-              onChange={(e) => {
-                setCategoryId(e.target.value);
-                resetPage();
-              }}
-            >
-              <option value="">All</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
             </SelectInput>
           </div>
           <div>
@@ -413,9 +375,7 @@ export function InventoryPage() {
                   <SortHeader label="Product" field="name" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
                   <SortHeader label="SKU" field="sku" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
                   <th className="px-4 py-3 font-medium">Brand</th>
-                  <th className="px-4 py-3 font-medium">Category</th>
                   <SortHeader label="On hand" field="quantityOnHand" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="text-right" />
-                  <SortHeader label="Reserved" field="quantityReserved" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="text-right" />
                   <SortHeader label="Available" field="available" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="text-right" />
                   <SortHeader label="Avg cost" field="weightedAverageCost" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="text-right" />
                   <SortHeader label="Value" field="inventoryValue" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="text-right" />
@@ -436,12 +396,8 @@ export function InventoryPage() {
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.sku}</td>
                     <td className="px-4 py-3 text-slate-600">{item.brandName ?? '—'}</td>
-                    <td className="px-4 py-3 text-slate-600">{item.categoryName ?? '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-slate-700">
                       {formatQuantity(item.quantityOnHand)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">
-                      {formatQuantity(item.quantityReserved)}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums font-medium text-slate-900">
                       {formatQuantity(item.available)}

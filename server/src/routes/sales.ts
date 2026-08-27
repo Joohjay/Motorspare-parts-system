@@ -15,7 +15,4 @@ router.get('/:id', saleController.getSale);
 router.get('/:id/receipt', saleController.getSaleReceipt);
 router.post('/:id/void', requireAdmin, saleController.voidSale);
 
-// Sales returns (financially sensitive — ADMIN processes them)
-router.post('/:id/returns', requireAdmin, saleController.createSaleReturn);
-
 export default router;

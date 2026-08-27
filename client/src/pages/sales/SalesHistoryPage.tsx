@@ -94,7 +94,6 @@ export function SalesHistoryPage(): ReactElement {
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-4 py-3">Sale</th>
-                <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Items</th>
                 <th className="px-4 py-3 text-right">Total</th>
@@ -110,7 +109,6 @@ export function SalesHistoryPage(): ReactElement {
                       {sale.saleNumber}
                     </Link>
                   </td>
-                  <td className="px-4 py-3">{sale.customerName ?? 'Walk-in'}</td>
                   <td className="px-4 py-3">{saleTypeLabels[sale.saleType]}</td>
                   <td className="px-4 py-3">{sale.itemCount}</td>
                   <td className="px-4 py-3 text-right font-medium">

@@ -21,7 +21,6 @@ router.post('/expenses/:id/void', requireAdmin, financeController.voidExpense);
 // Reports
 router.get('/reports/sales', financeController.salesReport);
 router.get('/reports/financial', financeController.financialReport);
-router.get('/reports/credit', financeController.creditReport);
 router.get('/reports/expenses', financeController.expensesReport);
 
 export default router;

@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/FormControls';
 import { reportsApi } from '@/lib/financeApi';
 import { formatCurrency } from '@/lib/inventoryApi';
-import type { CreditSummaryReport, FinancialReport } from '@/types/api';
+import type { FinancialReport } from '@/types/api';
 
 type Preset = 'today' | 'yesterday' | 'this_week' | 'this_month' | '';
 
@@ -37,7 +37,6 @@ export function ReportsPage(): ReactElement {
   const [to, setTo] = useState('');
 
   const [financial, setFinancial] = useState<FinancialReport | null>(null);
-  const [credit, setCredit] = useState<CreditSummaryReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -47,12 +46,8 @@ export function ReportsPage(): ReactElement {
         preset !== ''
           ? { preset }
           : { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
-      const [financialReport, creditReport] = await Promise.all([
-        reportsApi.financial(query),
-        reportsApi.credit(),
-      ]);
+      const financialReport = await reportsApi.financial(query);
       setFinancial(financialReport);
-      setCredit(creditReport);
     } catch (err) {
       setError(errorMessage(err, 'Could not load reports'));
     }
@@ -66,7 +61,7 @@ export function ReportsPage(): ReactElement {
     <div className="space-y-6 p-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Reports</h1>
-        <p className="text-sm text-slate-500">Sales performance, profitability and credit exposure.</p>
+        <p className="text-sm text-slate-500">Sales performance and profitability.</p>
       </div>
 
       <form
@@ -145,56 +140,17 @@ export function ReportsPage(): ReactElement {
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-4">
-              <h2 className="text-base font-semibold text-slate-900">Expenses & returns</h2>
+              <h2 className="text-base font-semibold text-slate-900">Expenses & discounts</h2>
               <ul className="mt-2 space-y-1 text-sm text-slate-600">
                 <li className="flex justify-between">
                   <span>Operating expenses</span>
                   <span className="font-medium text-slate-900">{formatCurrency(financial.expenses.total)}</span>
                 </li>
                 <li className="flex justify-between">
-                  <span>Returns refunded</span>
-                  <span className="font-medium text-slate-900">{formatCurrency(financial.returns.refundedTotal)}</span>
-                </li>
-                <li className="flex justify-between">
                   <span>Discounts given</span>
                   <span className="font-medium text-slate-900">{formatCurrency(financial.sales.discounts)}</span>
                 </li>
               </ul>
-            </section>
-
-            <section className="rounded-lg border border-slate-200 bg-white p-4 lg:col-span-2">
-              <h2 className="text-base font-semibold text-slate-900">Customer credit exposure</h2>
-              {!credit || credit.topDebtors.length === 0 ? (
-                <EmptyState message="No outstanding customer credit." />
-              ) : (
-                <>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {credit.activeAccounts} active account(s) ·{' '}
-                    {formatCurrency(credit.totalOutstanding)} outstanding of{' '}
-                    {formatCurrency(credit.totalCreditLimit)} limit.
-                  </p>
-                  <table className="mt-3 w-full text-sm">
-                    <thead className="text-left text-xs uppercase text-slate-400">
-                      <tr>
-                        <th className="py-1">Customer</th>
-                        <th className="py-1">Phone</th>
-                        <th className="py-1 text-right">Outstanding</th>
-                        <th className="py-1 text-right">Limit</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {credit.topDebtors.map((debtor) => (
-                        <tr key={debtor.customerId} className="border-t border-slate-100">
-                          <td className="py-1.5 font-medium text-slate-800">{debtor.name}</td>
-                          <td className="py-1.5">{debtor.phone ?? '—'}</td>
-                          <td className="py-1.5 text-right">{formatCurrency(debtor.outstandingBalance)}</td>
-                          <td className="py-1.5 text-right">{formatCurrency(debtor.creditLimit)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              )}
             </section>
           </div>
         </>

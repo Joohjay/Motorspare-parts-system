@@ -94,10 +94,6 @@ export const financialReport = asyncHandler(async (req: Request, res: Response) 
   res.json(await reportsService.financialReport(reportsService.resolveRange(query)));
 });
 
-export const creditReport = asyncHandler(async (_req: Request, res: Response) => {
-  res.json(await reportsService.creditSummary());
-});
-
 export const expensesReport = asyncHandler(async (req: Request, res: Response) => {
   const query = reportRangeQuery.parse(req.query);
   const range = reportsService.resolveRange(query);

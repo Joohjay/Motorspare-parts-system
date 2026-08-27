@@ -6,10 +6,12 @@ const children = [
   spawn(command, ['--prefix', 'server', 'run', 'dev'], {
     stdio: 'inherit',
     env: process.env,
+    shell: process.platform === 'win32',
   }),
   spawn(command, ['--prefix', 'client', 'run', 'dev'], {
     stdio: 'inherit',
     env: process.env,
+    shell: process.platform === 'win32',
   }),
 ];
 

@@ -182,8 +182,8 @@ describe('settings', () => {
       const settings = res.body.settings as Record<string, string>;
       assert.equal(settings['business.name'], 'New Shop Name');
       assert.equal(settings['business.phone'], '+255123456789');
-      assert.ok(settingsStore['business.name'].value === 'New Shop Name');
-      assert.ok(settingsStore['business.phone'].value === '+255123456789');
+      assert.ok(settingsStore['business.name']!.value === 'New Shop Name');
+      assert.ok(settingsStore['business.phone']!.value === '+255123456789');
       assert.ok(auditRecords.some((a) => a.action === 'SETTINGS_UPDATED'));
     } finally { await close(); }
   });

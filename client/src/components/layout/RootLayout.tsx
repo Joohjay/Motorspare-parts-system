@@ -25,16 +25,12 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
     items: [
       { to: '/catalog/products', label: 'Products' },
       { to: '/catalog/motorcycles', label: 'Motorcycles' },
-      { to: '/catalog/categories', label: 'Categories' },
       { to: '/catalog/brands', label: 'Brands' },
     ],
   },
   {
     heading: 'Inventory',
-    items: [
-      { to: '/inventory', label: 'Stock levels', end: true },
-      { to: '/inventory/reservations', label: 'Reservations' },
-    ],
+    items: [{ to: '/inventory', label: 'Stock levels', end: true }],
   },
   {
     heading: 'Purchasing',
@@ -42,20 +38,12 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
       { to: '/purchasing/suppliers', label: 'Suppliers' },
       { to: '/purchasing/purchase-orders', label: 'Purchase orders' },
       { to: '/purchasing/purchases', label: 'Receiving' },
-      { to: '/purchasing/purchase-returns', label: 'Purchase returns' },
       { to: '/purchasing/credit', label: 'Supplier credit' },
     ],
   },
   {
     heading: 'Sales',
-    items: [
-      { to: '/sales', label: 'Sales history', end: true },
-      { to: '/sales/returns', label: 'Returns', end: true },
-    ],
-  },
-  {
-    heading: 'Customers',
-    items: [{ to: '/customers', label: 'Customers', end: true }],
+    items: [{ to: '/sales', label: 'Sales history', end: true }],
   },
   {
     heading: 'Finance',

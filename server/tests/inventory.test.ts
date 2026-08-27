@@ -697,7 +697,6 @@ afterEach(async () => {
 // ---------------------------------------------------------------------------
 
 const P1 = (): ProductFixture => products[0] as unknown as ProductFixture;
-const P2 = (): ProductFixture => products[1] as unknown as ProductFixture;
 
 interface ProductFixture {
   id: string;
@@ -855,129 +854,6 @@ describe('inventory — mock unit & API tests', () => {
         });
         assert.equal(res.status, 403);
         assert.equal((res.body.error as Rec).code, 'FORBIDDEN');
-      } finally {
-        await close();
-      }
-    });
-  });
-
-  describe('reservations', () => {
-    test('ADMIN can reserve available stock; ledger records reservation', async () => {
-      const { port, close } = await startServer();
-      try {
-        await inventoryService.increaseStock({ productId: P1().id, quantity: 10, unitCost: 100, createdById: ADMIN_ID });
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'POST', '/api/inventory/reservations', {
-          productId: P1().id,
-          quantity: 4,
-          note: 'customer hold',
-        });
-        assert.equal(res.status, 201);
-        const body = res.body as Rec;
-        assert.equal((body.inventory as Rec).quantityOnHand, 10);
-        assert.equal((body.inventory as Rec).quantityReserved, 4);
-        assert.equal((body.inventory as Rec).available, 6);
-        const txn = inventoryTransactions.find((t) => t.type === 'RESERVATION');
-        assert.ok(txn, 'reservation ledger row exists');
-        assert.equal(txn.quantity, 0);
-        assert.equal(txn.balanceAfter, 10);
-        assert.equal(txn.referenceId, (body.reservation as Rec).id);
-        assert.ok(auditRecords.some((a) => a.action === 'INVENTORY_RESERVATION_CREATED'));
-      } finally {
-        await close();
-      }
-    });
-
-    test('reservation exceeding available stock is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        await inventoryService.increaseStock({ productId: P1().id, quantity: 3, unitCost: 100, createdById: ADMIN_ID });
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'POST', '/api/inventory/reservations', {
-          productId: P1().id,
-          quantity: 4,
-        });
-        assert.equal(res.status, 409);
-        assert.equal((res.body.error as Rec).code, 'INSUFFICIENT_AVAILABLE_STOCK');
-      } finally {
-        await close();
-      }
-    });
-
-    test('reservation validates quantity and reservedUntil', async () => {
-      const { port, close } = await startServer();
-      try {
-        await inventoryService.increaseStock({ productId: P1().id, quantity: 10, unitCost: 100, createdById: ADMIN_ID });
-        const jar = adminJar();
-        const badQty = await mutate(port, jar, 'POST', '/api/inventory/reservations', { productId: P1().id, quantity: 0 });
-        assert.equal(badQty.status, 400);
-        const badDate = await mutate(port, jar, 'POST', '/api/inventory/reservations', {
-          productId: P1().id,
-          quantity: 1,
-          reservedUntil: 'not-a-date',
-        });
-        assert.equal(badDate.status, 400);
-      } finally {
-        await close();
-      }
-    });
-
-    test('releasing a reservation restores availability; double release rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        await inventoryService.increaseStock({ productId: P1().id, quantity: 10, unitCost: 100, createdById: ADMIN_ID });
-        const created = await inventoryService.reserve({ productId: P1().id, quantity: 4, createdById: ADMIN_ID });
-        const jar = adminJar();
-        const released = await mutate(port, jar, 'PATCH', `/api/inventory/reservations/${created.reservation.id}/release`);
-        assert.equal(released.status, 200);
-        assert.equal((released.body.inventory as Rec).available, 10);
-        assert.equal((released.body.reservation as Rec).status, 'CANCELLED');
-
-        const again = await mutate(port, jar, 'PATCH', `/api/inventory/reservations/${created.reservation.id}/release`);
-        assert.equal(again.status, 409);
-        assert.equal((again.body.error as Rec).code, 'RESERVATION_ALREADY_RELEASED');
-      } finally {
-        await close();
-      }
-    });
-
-    test('releasing an unknown reservation is 404', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'PATCH', '/api/inventory/reservations/unknown/release');
-        assert.equal(res.status, 404);
-        assert.equal((res.body.error as Rec).code, 'RESERVATION_NOT_FOUND');
-      } finally {
-        await close();
-      }
-    });
-
-    test('reservation list filters by status', async () => {
-      const { port, close } = await startServer();
-      try {
-        await inventoryService.increaseStock({ productId: P1().id, quantity: 10, unitCost: 100, createdById: ADMIN_ID });
-        await inventoryService.increaseStock({ productId: P2().id, quantity: 5, unitCost: 50, createdById: ADMIN_ID });
-        const created = await inventoryService.reserve({ productId: P1().id, quantity: 4, createdById: ADMIN_ID });
-        await inventoryService.reserve({ productId: P2().id, quantity: 1, createdById: ADMIN_ID });
-        const jar = assistantJar();
-        const active = await request(port, jar, 'GET', `/api/inventory/reservations?status=ACTIVE&productId=${P1().id}`);
-        assert.equal((active.body.items as Rec[]).length, 1);
-        await inventoryService.releaseReservation({ reservationId: created.reservation.id, createdById: ADMIN_ID });
-        const cancelled = await request(port, jar, 'GET', '/api/inventory/reservations?status=CANCELLED');
-        assert.equal((cancelled.body.items as Rec[]).length, 1);
-      } finally {
-        await close();
-      }
-    });
-
-    test('assistant cannot create or release reservations', async () => {
-      const { port, close } = await startServer();
-      try {
-        await inventoryService.increaseStock({ productId: P1().id, quantity: 10, unitCost: 100, createdById: ADMIN_ID });
-        const jar = assistantJar();
-        const create = await mutate(port, jar, 'POST', '/api/inventory/reservations', { productId: P1().id, quantity: 1 });
-        assert.equal(create.status, 403);
       } finally {
         await close();
       }

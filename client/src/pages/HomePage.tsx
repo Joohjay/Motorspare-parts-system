@@ -17,7 +17,7 @@ export function HomePage() {
         <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-400">
           Professional system for motorcycle spare parts management — catalog,
           purchasing, inventory, retail and wholesale sales, discounts,
-          payments, credit, returns, expenses and reporting.
+          payments, expenses and reporting.
         </p>
         <Link
           to="/login"

@@ -14,8 +14,6 @@ let salesAgg: { _count: { _all: number }; _sum: { totalAmount: number; discount:
 let saleItemAgg: { _sum: { lineCost: number } };
 let paymentGroupBy: Array<{ paymentMethod: string; _sum: { amount: number } }>;
 let rawSales: Array<unknown>;
-let creditAccounts: Array<Record<string, unknown>>;
-let returnsAgg: { _count: { _all: number }; _sum: { totalAmount: number } };
 let expenseAgg: { _sum: { amount: number } };
 let expenseGroupBy: Array<{ categoryId: string; _sum: { amount: number } }>;
 let expenseCategories: Array<{ id: string; name: string }>;
@@ -38,19 +36,6 @@ const db = {
     groupBy: mock.fn(async () => paymentGroupBy),
   },
   $queryRaw: mock.fn(async () => rawSales),
-  customerCreditAccount: {
-    aggregate: mock.fn(async () => ({
-      _count: { _all: creditAccounts.length },
-      _sum: {
-        outstandingBalance: creditAccounts.reduce((s, a) => s + Number(a.outstandingBalance), 0),
-        creditLimit: creditAccounts.reduce((s, a) => s + Number(a.creditLimit), 0),
-      },
-    })),
-    findMany: mock.fn(async () => creditAccounts),
-  },
-  saleReturn: {
-    aggregate: mock.fn(async () => returnsAgg),
-  },
   expense: {
     aggregate: mock.fn(async () => expenseAgg),
     groupBy: mock.fn(async () => expenseGroupBy),
@@ -127,8 +112,7 @@ beforeEach(() => {
   for (const fn of [
     db.user.findUnique, db.user.update,
     db.sale.aggregate, db.saleItem.aggregate, db.payment.groupBy, db.$queryRaw,
-    db.customerCreditAccount.aggregate, db.customerCreditAccount.findMany,
-    db.saleReturn.aggregate, db.expense.aggregate, db.expense.groupBy, db.expenseCategory.findMany,
+    db.expense.aggregate, db.expense.groupBy, db.expenseCategory.findMany,
     db.auditLog.create, db.$transaction,
   ]) {
     fn.mock.resetCalls();
@@ -137,8 +121,6 @@ beforeEach(() => {
   saleItemAgg = { _sum: { lineCost: 0 } };
   paymentGroupBy = [];
   rawSales = [];
-  creditAccounts = [];
-  returnsAgg = { _count: { _all: 0 }, _sum: { totalAmount: 0 } };
   expenseAgg = { _sum: { amount: 0 } };
   expenseGroupBy = [];
   expenseCategories = [];
@@ -190,20 +172,8 @@ describe('reports', () => {
       assert.equal(res.status, 200);
       const body = res.body as { payments: Array<{ paymentMethod: string; total: string }> };
       assert.equal(body.payments.length, 2);
-      assert.equal(body.payments[0].paymentMethod, 'CASH');
-      assert.equal(body.payments[0].total, '3000000.00');
-    } finally { await close(); }
-  });
-
-  test('returns summary returns zeroed data when no returns', async () => {
-    const { port, close } = await startServer();
-    try {
-      const jar = adminJar();
-      const res = await request(port, jar, 'GET', '/api/finance/reports/financial?preset=today');
-      assert.equal(res.status, 200);
-      const body = res.body as { returns: { returnCount: number; refundedTotal: string } };
-      assert.equal(body.returns.returnCount, 0);
-      assert.equal(body.returns.refundedTotal, '0.00');
+      assert.equal(body.payments[0]!.paymentMethod, 'CASH');
+      assert.equal(body.payments[0]!.total, '3000000.00');
     } finally { await close(); }
   });
 
@@ -232,24 +202,6 @@ describe('reports', () => {
       assert.equal(body.netOperatingResult.grossProfit, '1500000.00');
       assert.equal(body.netOperatingResult.operatingExpenses, '500000.00');
       assert.equal(body.netOperatingResult.netOperatingResult, '1000000.00');
-    } finally { await close(); }
-  });
-
-  test('credit summary returns top debtors', async () => {
-    creditAccounts = [
-      { id: 'cca-1', customerId: 'c1', outstandingBalance: 500000, creditLimit: 1000000, customer: { id: 'c1', name: 'Big Customer', phone: '+255700000000' } },
-      { id: 'cca-2', customerId: 'c2', outstandingBalance: 200000, creditLimit: 500000, customer: { id: 'c2', name: 'Small Customer', phone: '+255700000001' } },
-    ];
-    const { port, close } = await startServer();
-    try {
-      const jar = adminJar();
-      const res = await request(port, jar, 'GET', '/api/finance/reports/credit');
-      assert.equal(res.status, 200);
-      const body = res.body as { activeAccounts: number; totalOutstanding: string; topDebtors: Array<{ name: string; outstandingBalance: string }> };
-      assert.equal(body.activeAccounts, 2);
-      assert.equal(body.totalOutstanding, '700000.00');
-      assert.equal(body.topDebtors.length, 2);
-      assert.equal(body.topDebtors[0].name, 'Big Customer');
     } finally { await close(); }
   });
 
