@@ -9,10 +9,12 @@ import {
   Field,
   FormError,
   LoadingState,
+  SelectInput,
   TextInput,
   errorMessage,
 } from '@/components/ui/FormControls';
 import { authApi } from '@/lib/authApi';
+import { printingApi } from '@/lib/printingApi';
 import { settingsApi } from '@/lib/stage8Api';
 import type { BusinessSettings as BusinessSettingsShape } from '@/types/api';
 
@@ -215,6 +217,9 @@ export function SettingsPage(): ReactElement {
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const [printers, setPrinters] = useState<string[]>([]);
+  const [printersError, setPrintersError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoadError(null);
     try {
@@ -226,9 +231,20 @@ export function SettingsPage(): ReactElement {
     }
   }, []);
 
+  const loadPrinters = useCallback(async () => {
+    setPrintersError(null);
+    try {
+      const { printers: list } = await printingApi.listPrinters();
+      setPrinters(list);
+    } catch (err) {
+      setPrintersError(errorMessage(err, 'Could not load installed printers'));
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadPrinters();
+  }, [load, loadPrinters]);
 
   if (loadError) return <ErrorState message={loadError} />;
   if (!settings) return <LoadingState label="Loading settings…" />;
@@ -295,6 +311,78 @@ export function SettingsPage(): ReactElement {
           ) : null}
           {saved && !saveError ? <span className="text-sm font-medium text-emerald-700">Saved.</span> : null}
         </div>
+      </Card>
+
+      <Card className="max-w-xl p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Receipt printing</h2>
+        <p className="mt-1 text-xs text-slate-400">
+          The Print buttons on sales send receipts straight to this printer — no browser dialog.
+          Thermal printers need ESC/POS; plain text suits normal paper printers.
+        </p>
+
+        {printersError ? (
+          <p className="mt-3 rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-700">{printersError}</p>
+        ) : null}
+
+        <div className="mt-4 space-y-4">
+          <Field label="Receipt printer" htmlFor="receipt-printer">
+            <SelectInput
+              id="receipt-printer"
+              value={draft['printing.receiptPrinter'] ?? ''}
+              disabled={!isAdmin || busy}
+              onChange={(event) => {
+                setSaved(false);
+                setDraft((current) => ({ ...current, 'printing.receiptPrinter': event.target.value }));
+              }}
+            >
+              <option value="">— No printer (silent print disabled) —</option>
+              {printers.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </SelectInput>
+            {printers.length === 0 && !printersError ? (
+              <p className="mt-1 text-xs text-slate-400">No printers detected on this PC.</p>
+            ) : null}
+          </Field>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Print mode" htmlFor="receipt-mode">
+              <SelectInput
+                id="receipt-mode"
+                value={draft['printing.receiptMode'] ?? 'thermal'}
+                disabled={!isAdmin || busy}
+                onChange={(event) => {
+                  setSaved(false);
+                  setDraft((current) => ({ ...current, 'printing.receiptMode': event.target.value }));
+                }}
+              >
+                <option value="thermal">Thermal (ESC/POS)</option>
+                <option value="text">Plain text</option>
+              </SelectInput>
+            </Field>
+            <Field label="Width (chars)" htmlFor="receipt-width">
+              <SelectInput
+                id="receipt-width"
+                value={draft['printing.receiptWidth'] ?? '42'}
+                disabled={!isAdmin || busy}
+                onChange={(event) => {
+                  setSaved(false);
+                  setDraft((current) => ({ ...current, 'printing.receiptWidth': event.target.value }));
+                }}
+              >
+                <option value="32">32 — 58 mm paper</option>
+                <option value="42">42 — 80 mm paper</option>
+                <option value="48">48 — 80 mm wide</option>
+              </SelectInput>
+            </Field>
+          </div>
+        </div>
+
+        {!isAdmin ? (
+          <p className="mt-3 text-xs text-slate-400">Only an administrator can change printing settings.</p>
+        ) : null}
       </Card>
 
       <ChangeOwnPasswordCard />

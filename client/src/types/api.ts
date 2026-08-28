@@ -713,4 +713,7 @@ export interface BusinessSettings {
   'business.currency': string;
   'business.timezone': string;
   'business.receiptFooter': string;
+  'printing.receiptPrinter': string;
+  'printing.receiptMode': string;
+  'printing.receiptWidth': string;
 }

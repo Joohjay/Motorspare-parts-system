@@ -28,6 +28,11 @@ const PUBLIC_DEFAULTS: Record<string, string> = {
   'business.currency': 'TZS',
   'business.timezone': 'Africa/Nairobi',
   'business.receiptFooter': 'Thank you for your business',
+  // Receipt printing — printer name + mode + character width. Stored as
+  // ordinary settings so the admin can pick a printer in the web UI.
+  'printing.receiptPrinter': '',
+  'printing.receiptMode': 'thermal',
+  'printing.receiptWidth': '42',
 };
 
 /** Keys any authenticated user may read (needed for receipts/dashboard). */

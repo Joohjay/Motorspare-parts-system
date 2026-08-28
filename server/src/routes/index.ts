@@ -14,6 +14,7 @@ import dashboardRouter from './dashboard.js';
 import notificationsRouter from './notifications.js';
 import settingsRouter from './settings.js';
 import purchasesRouter from './purchases.js';
+import printingRouter from './printing.js';
 import supplierCreditRouter from './supplierCredit.js';
 import supplierProductsRouter from './supplierProducts.js';
 import suppliersRouter from './suppliers.js';
@@ -37,5 +38,6 @@ router.use('/dashboard', dashboardRouter);
 router.use('/notifications', notificationsRouter);
 router.use('/settings', settingsRouter);
 router.use('/supplier-credit', supplierCreditRouter);
+router.use('/printing', printingRouter);
 
 export default router;

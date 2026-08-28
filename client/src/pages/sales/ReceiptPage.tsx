@@ -4,19 +4,24 @@ import { Link, useParams } from 'react-router-dom';
 
 import { Button } from '@/components/ui/Button';
 import { ErrorState, LoadingState, errorMessage } from '@/components/ui/FormControls';
+import { ApiClientError } from '@/lib/api';
 import { formatCurrency } from '@/lib/inventoryApi';
+import { printingApi } from '@/lib/printingApi';
 import { receiptsApi } from '@/lib/stage8Api';
 import type { ReceiptData as ReceiptDataShape } from '@/types/api';
 
 /**
  * Printable receipt (Stage 8). Renders the frozen sale snapshot plus current
- * business settings. Printing uses a dedicated print stylesheet that hides
- * the application shell so only the receipt reaches paper.
+ * business settings. The primary Print button spools straight to the Windows
+ * receipt printer configured in Settings (no dialog); the browser-print
+ * action remains as a fallback and uses a dedicated print stylesheet.
  */
 export function ReceiptPage(): ReactElement {
   const { id = '' } = useParams();
   const [receipt, setReceipt] = useState<ReceiptDataShape | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [printNote, setPrintNote] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -32,6 +37,23 @@ export function ReceiptPage(): ReactElement {
     void load();
   }, [load]);
 
+  const printSilently = useCallback(async () => {
+    setPrinting(true);
+    setPrintNote(null);
+    try {
+      const result = await printingApi.printReceipt(id);
+      setPrintNote(result.printed ? `Receipt sent to ${result.printer}.` : 'Receipt was not printed.');
+    } catch (err) {
+      if (err instanceof ApiClientError && err.code === 'PRINTING_NOT_CONFIGURED') {
+        setPrintNote('No receipt printer configured — open Settings to choose one, or use Browser print.');
+      } else {
+        setPrintNote(errorMessage(err, 'Could not print receipt'));
+      }
+    } finally {
+      setPrinting(false);
+    }
+  }, [id]);
+
   if (error) return <ErrorState message={error} />;
   if (!receipt) return <LoadingState label="Preparing receipt…" />;
 
@@ -40,9 +62,19 @@ export function ReceiptPage(): ReactElement {
 
   return (
     <div className="space-y-4">
-      <div className="print:hidden flex items-center justify-between">
+      <div className="print:hidden flex items-center justify-between gap-3">
         <Link to={`/sales/${sale.id}`} className="text-sm font-medium text-brand-700 hover:underline">← Back to sale</Link>
-        <Button onClick={() => window.print()}>Print receipt</Button>
+        <div className="flex items-center gap-3">
+          {printNote ? (
+            <span className="text-xs text-amber-700">{printNote}</span>
+          ) : null}
+          <Button onClick={() => void printSilently()} disabled={printing}>
+            {printing ? 'Printing…' : 'Print receipt'}
+          </Button>
+          <Button variant="secondary" onClick={() => window.print()}>
+            Browser print…
+          </Button>
+        </div>
       </div>
 
       <div

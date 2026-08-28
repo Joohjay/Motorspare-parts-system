@@ -15,8 +15,10 @@ import {
 import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
 import { PaginationControls } from '@/components/ui/PaginationControls';
+import { ApiClientError } from '@/lib/api';
 import { formatCurrency, inventoryApi } from '@/lib/inventoryApi';
 import { productsApi } from '@/lib/catalogApi';
+import { printingApi } from '@/lib/printingApi';
 import { salesApi } from '@/lib/salesApi';
 import type { PaymentMethod, Sale } from '@/types/api';
 import type { InventoryListItem } from '@/types/api';
@@ -74,6 +76,8 @@ export function PosPage(): ReactElement {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
+  const [printStatus, setPrintStatus] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
 
   const subtotal = useMemo(
     () => cart.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0),
@@ -174,6 +178,23 @@ export function PosPage(): ReactElement {
 
   const canSubmit = cart.length > 0 && remaining === 0 && allocated > 0;
 
+  const sendToPrinter = async (saleId: string): Promise<void> => {
+    setPrinting(true);
+    setPrintStatus(null);
+    try {
+      const result = await printingApi.printReceipt(saleId);
+      setPrintStatus(result.printed ? `Receipt sent to ${result.printer}.` : 'Receipt was not printed.');
+    } catch (err) {
+      if (err instanceof ApiClientError && err.code === 'PRINTING_NOT_CONFIGURED') {
+        setPrintStatus('No receipt printer configured — open Settings to choose one.');
+      } else {
+        setPrintStatus(`Auto-print failed: ${errorMessage(err, 'Could not print receipt')}`);
+      }
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const submit = async (): Promise<void> => {
     setSubmitting(true);
     setSubmitError(null);
@@ -197,6 +218,7 @@ export function PosPage(): ReactElement {
       setCart([]);
       setPayments([{ paymentMethod: 'CASH', amount: '', reference: '' }]);
       setNotes('');
+      void sendToPrinter(result.sale.id);
     } catch (err) {
       setSubmitError(errorMessage(err, 'Could not record the sale'));
     } finally {
@@ -216,14 +238,29 @@ export function PosPage(): ReactElement {
             {completedSale.saleNumber} &mdash; {formatCurrency(completedSale.totalAmount)}
           </p>
         </div>
+        {printStatus ? (
+          <p className={`text-sm ${printStatus.startsWith('Receipt sent') ? 'text-emerald-700' : 'text-amber-700'}`}>
+            {printStatus}
+          </p>
+        ) : null}
         <div className="flex flex-wrap justify-center gap-3">
-          <Button onClick={() => navigate(`/sales/${completedSale.id}/receipt`)}>
-            Print receipt
+          <Button
+            onClick={() => void sendToPrinter(completedSale.id)}
+            disabled={printing}
+          >
+            {printing ? <Spinner /> : 'Print receipt'}
           </Button>
           <Button variant="secondary" onClick={() => navigate(`/sales/${completedSale.id}`)}>
             View sale details
           </Button>
         </div>
+        <button
+          type="button"
+          className="text-sm font-medium text-brand-700 hover:underline"
+          onClick={() => navigate(`/sales/${completedSale.id}/receipt`)}
+        >
+          Open receipt in browser print…
+        </button>
         <button
           type="button"
           className="text-sm font-medium text-brand-700 hover:underline"
