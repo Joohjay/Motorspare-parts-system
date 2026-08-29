@@ -323,7 +323,6 @@ export function PosPage(): ReactElement {
                       <p className="font-medium leading-tight text-slate-800">{item.name}</p>
                       <p className="mt-0.5 text-xs text-slate-400">
                         {item.sku}
-                        {item.brandName ? ` · ${item.brandName}` : ''}
                       </p>
                     </div>
                     <div className="flex items-center justify-between gap-2">

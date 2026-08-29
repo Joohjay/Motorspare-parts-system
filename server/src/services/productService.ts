@@ -21,12 +21,10 @@ export interface ProductListItem {
   name: string;
   status: Status;
   categoryId: string | null;
-  brandId: string | null;
   costPrice: Prisma.Decimal;
   retailPrice: Prisma.Decimal;
   wholesalePrice: Prisma.Decimal;
   category: { id: string; name: string; slug: string; status: string } | null;
-  brand: { id: string; name: string; status: string } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,12 +37,10 @@ export interface ProductDetail extends ProductListItem {
 
 const listInclude = {
   category: { select: { id: true, name: true, slug: true, status: true } },
-  brand: { select: { id: true, name: true, status: true } },
 } satisfies Prisma.ProductInclude;
 
 const detailInclude = {
   category: { select: { id: true, name: true, slug: true, status: true } },
-  brand: { select: { id: true, name: true, status: true } },
 } satisfies Prisma.ProductInclude;
 
 function toListItem(product: Prisma.ProductGetPayload<{ include: typeof listInclude }>): ProductListItem {
@@ -54,12 +50,10 @@ function toListItem(product: Prisma.ProductGetPayload<{ include: typeof listIncl
     name: product.name,
     status: product.status,
     categoryId: product.categoryId,
-    brandId: product.brandId,
     costPrice: product.costPrice,
     retailPrice: product.retailPrice,
     wholesalePrice: product.wholesalePrice,
     category: product.category,
-    brand: product.brand,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   };
@@ -81,12 +75,6 @@ function toDetail(product: Prisma.ProductGetPayload<{ include: typeof detailIncl
 async function resolveCategory(categoryId: string): Promise<void> {
   const category = await prisma.category.findUnique({ where: { id: categoryId } });
   if (!category) throw ApiError.badRequest('Category does not exist');
-}
-
-async function resolveBrand(brandId: string | null | undefined): Promise<void> {
-  if (!brandId) return;
-  const brand = await prisma.brand.findUnique({ where: { id: brandId } });
-  if (!brand) throw ApiError.badRequest('Brand does not exist');
 }
 
 async function assertSkuAvailable(sku: string, excludeProductId?: string): Promise<void> {
@@ -113,7 +101,6 @@ const SORT_FIELDS: Record<string, string> = {
 export async function listProducts(query: {
   q?: string;
   categoryId?: string;
-  brandId?: string;
   status?: Status;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
@@ -124,14 +111,12 @@ export async function listProducts(query: {
 
   if (query.status) and.push({ status: query.status });
   if (query.categoryId) and.push({ categoryId: query.categoryId });
-  if (query.brandId) and.push({ brandId: query.brandId });
 
   if (query.q) {
     and.push({
       OR: [
         { name: { contains: query.q, mode: 'insensitive' } },
         { sku: { contains: query.q, mode: 'insensitive' } },
-        { brand: { is: { name: { contains: query.q, mode: 'insensitive' } } } },
         { category: { is: { name: { contains: query.q, mode: 'insensitive' } } } },
       ],
     });
@@ -172,7 +157,6 @@ export async function createProduct(
     name: string;
     description?: string | null;
     categoryId: string;
-    brandId?: string | null;
     costPrice: number;
     retailPrice: number;
     wholesalePrice: number;
@@ -184,7 +168,6 @@ export async function createProduct(
   ctx: { request: Request; actor: { id: string } },
 ): Promise<ProductDetail> {
   await resolveCategory(input.categoryId);
-  await resolveBrand(input.brandId);
   await assertSkuAvailable(input.sku);
 
   const quantityOnHand = input.quantityOnHand ?? 0;
@@ -196,7 +179,6 @@ export async function createProduct(
         name: input.name.trim(),
         description: input.description ?? null,
         categoryId: input.categoryId,
-        brandId: input.brandId ?? null,
         costPrice: input.costPrice,
         retailPrice: input.retailPrice,
         wholesalePrice: input.wholesalePrice,
@@ -235,7 +217,6 @@ export async function createProduct(
       sku: product.sku,
       name: product.name,
       categoryId: product.categoryId,
-      brandId: product.brandId,
       costPrice: product.costPrice,
       quantityOnHand,
     },
@@ -251,7 +232,6 @@ export async function updateProduct(
     name?: string;
     description?: string | null;
     categoryId?: string;
-    brandId?: string | null;
     costPrice?: number;
     retailPrice?: number;
     wholesalePrice?: number;
@@ -265,7 +245,6 @@ export async function updateProduct(
   if (!existing) throw ApiError.notFound('Product not found');
 
   if (input.categoryId !== undefined) await resolveCategory(input.categoryId);
-  if (input.brandId !== undefined) await resolveBrand(input.brandId);
   if (input.sku !== undefined) await assertSkuAvailable(input.sku, id);
 
   const data: Prisma.ProductUncheckedUpdateInput = {};
@@ -273,7 +252,6 @@ export async function updateProduct(
   if (input.name !== undefined) data.name = input.name.trim();
   if (input.description !== undefined) data.description = input.description ?? null;
   if (input.categoryId !== undefined) data.categoryId = input.categoryId;
-  if (input.brandId !== undefined) data.brandId = input.brandId ?? null;
   if (input.costPrice !== undefined) data.costPrice = input.costPrice;
   if (input.retailPrice !== undefined) data.retailPrice = input.retailPrice;
   if (input.wholesalePrice !== undefined) data.wholesalePrice = input.wholesalePrice;
@@ -293,7 +271,6 @@ export async function updateProduct(
       sku: existing.sku,
       name: existing.name,
       categoryId: existing.categoryId,
-      brandId: existing.brandId,
       costPrice: existing.costPrice,
       retailPrice: existing.retailPrice,
       wholesalePrice: existing.wholesalePrice,
@@ -302,7 +279,6 @@ export async function updateProduct(
       sku: product.sku,
       name: product.name,
       categoryId: product.categoryId,
-      brandId: product.brandId,
       costPrice: product.costPrice,
       retailPrice: product.retailPrice,
       wholesalePrice: product.wholesalePrice,
@@ -384,7 +360,6 @@ export async function deleteProduct(
       sku: existing.sku,
       name: existing.name,
       categoryId: existing.categoryId,
-      brandId: existing.brandId,
     },
   });
 }

@@ -16,7 +16,6 @@ const transactionType = z.nativeEnum(InventoryTransactionType);
 export const inventoryListQuery = z.object({
   q: z.string().trim().max(120).optional(),
   categoryId: z.string().min(1).max(128).optional(),
-  brandId: z.string().min(1).max(128).optional(),
   status: productStatus.optional(),
   stockStatus: z.enum(['HEALTHY', 'LOW_STOCK', 'OUT_OF_STOCK']).optional(),
   ...sortSchema(
@@ -30,7 +29,6 @@ export const inventoryListQuery = z.object({
 export const lowStockQuery = z.object({
   q: z.string().trim().max(120).optional(),
   categoryId: z.string().min(1).max(128).optional(),
-  brandId: z.string().min(1).max(128).optional(),
   stockStatus: z.enum(['LOW_STOCK', 'OUT_OF_STOCK']).optional(),
   page: page.default(1),
   pageSize: pageSize.default(DEFAULT_PAGE_SIZE),

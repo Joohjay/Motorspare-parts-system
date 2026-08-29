@@ -12,9 +12,8 @@ import {
 } from '@/components/ui/FormControls';
 import { PaginationControls } from '@/components/ui/PaginationControls';
 import { StockStatusPill } from '@/components/ui/StockStatusPill';
-import { brandsApi } from '@/lib/catalogApi';
 import { formatCurrency, formatQuantity, inventoryApi } from '@/lib/inventoryApi';
-import type { Brand, InventoryListItem, StockStatus } from '@/types/api';
+import type { InventoryListItem, StockStatus } from '@/types/api';
 
 const PAGE_SIZE = 20;
 
@@ -78,7 +77,6 @@ type StockFilter = '' | StockStatus;
 export function InventoryPage() {
   const [q, setQ] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('');
-  const [brandId, setBrandId] = useState('');
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
@@ -89,8 +87,6 @@ export function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [brands, setBrands] = useState<Brand[]>([]);
-
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -99,7 +95,6 @@ export function InventoryPage() {
       .list({
         q: q || undefined,
         stockStatus: stockFilter || undefined,
-        brandId: brandId || undefined,
         sortBy: sortBy || undefined,
         sortOrder,
         page,
@@ -120,23 +115,7 @@ export function InventoryPage() {
     return () => {
       active = false;
     };
-  }, [q, stockFilter, brandId, sortBy, sortOrder, page]);
-
-  useEffect(() => {
-    let active = true;
-    void brandsApi
-      .list({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' })
-      .then((brandData) => {
-        if (!active) return;
-        setBrands(brandData.items);
-      })
-      .catch(() => {
-        // Filter options are non-critical; the list still renders.
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  }, [q, stockFilter, sortBy, sortOrder, page]);
 
   function handleSort(field: SortField) {
     if (sortBy === field) {
@@ -176,7 +155,7 @@ export function InventoryPage() {
             </label>
             <TextInput
               id="inventory-search"
-              placeholder="Name, SKU, brand, category…"
+              placeholder="Name, SKU, category…"
               value={q}
               onChange={(e) => {
                 setQ(e.target.value);
@@ -200,26 +179,6 @@ export function InventoryPage() {
               <option value="HEALTHY">Healthy</option>
               <option value="LOW_STOCK">Low stock</option>
               <option value="OUT_OF_STOCK">Out of stock</option>
-            </SelectInput>
-          </div>
-          <div>
-            <label htmlFor="inventory-brand" className="block text-sm font-medium text-slate-700">
-              Brand
-            </label>
-            <SelectInput
-              id="inventory-brand"
-              value={brandId}
-              onChange={(e) => {
-                setBrandId(e.target.value);
-                resetPage();
-              }}
-            >
-              <option value="">All</option>
-              {brands.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
             </SelectInput>
           </div>
         </div>
@@ -249,7 +208,6 @@ export function InventoryPage() {
                 <tr>
                   <SortHeader label="Product" field="name" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
                   <SortHeader label="SKU" field="sku" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
-                  <th className="px-4 py-3 font-medium">Brand</th>
                   <SortHeader label="On hand" field="quantityOnHand" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="text-right" />
                   <SortHeader label="Available" field="available" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="text-right" />
                   <SortHeader label="Avg cost" field="weightedAverageCost" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} className="text-right" />
@@ -270,7 +228,6 @@ export function InventoryPage() {
                       </Link>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.sku}</td>
-                    <td className="px-4 py-3 text-slate-600">{item.brandName ?? '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-slate-700">
                       {formatQuantity(item.quantityOnHand)}
                     </td>

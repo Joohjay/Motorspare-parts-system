@@ -14,7 +14,6 @@ import { apiRequest } from '@/lib/api';
 export interface InventoryListQuery {
   q?: string;
   categoryId?: string;
-  brandId?: string;
   status?: 'ACTIVE' | 'INACTIVE';
   stockStatus?: StockStatus;
   sortBy?: string;
@@ -38,7 +37,6 @@ export interface TransactionListQuery {
 export interface LowStockQuery {
   q?: string;
   categoryId?: string;
-  brandId?: string;
   stockStatus?: 'LOW_STOCK' | 'OUT_OF_STOCK';
   page?: number;
   pageSize?: number;

@@ -1,6 +1,4 @@
 import type {
-  Brand,
-  BrandInput,
   CatalogStatus,
   Paginated,
   ProductDetail,
@@ -17,7 +15,6 @@ export interface ListQuery {
   pageSize?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
-  brandId?: string;
 }
 
 function toQuery(query: ListQuery): string {
@@ -30,30 +27,6 @@ function toQuery(query: ListQuery): string {
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
-
-export const brandsApi = {
-  list(query: ListQuery = {}): Promise<Paginated<Brand>> {
-    return apiRequest<Paginated<Brand>>(`/brands${toQuery(query)}`);
-  },
-  create(input: BrandInput): Promise<{ brand: Brand }> {
-    return apiRequest<{ brand: Brand }>('/brands', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    });
-  },
-  update(id: string, input: BrandInput): Promise<{ brand: Brand }> {
-    return apiRequest<{ brand: Brand }>(`/brands/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(input),
-    });
-  },
-  setStatus(id: string, status: CatalogStatus): Promise<{ brand: Brand }> {
-    return apiRequest<{ brand: Brand }>(`/brands/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
-  },
-};
 
 export const productsApi = {
   list(query: ListQuery = {}): Promise<Paginated<ProductListItem>> {

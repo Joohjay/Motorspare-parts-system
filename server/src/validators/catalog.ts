@@ -24,29 +24,6 @@ export function sortSchema(fields: readonly [string, ...string[]], defaultBy: st
 }
 
 // ---------------------------------------------------------------------------
-// Named catalog entities (brands)
-// ---------------------------------------------------------------------------
-
-export const nameField = z.string().trim().min(1).max(120, 'Name is too long');
-export const descriptionField = z.string().trim().max(500, 'Description is too long');
-
-export const namedListQuery = z.object({
-  q: z.string().trim().max(120).optional(),
-  status: statusSchema.optional(),
-  ...sortSchema(['name', 'createdAt', 'updatedAt'], 'name'),
-  page: page.default(1),
-  pageSize: pageSize.default(DEFAULT_PAGE_SIZE),
-});
-
-export const brandCreateSchema = z.object({
-  name: nameField,
-});
-
-export const brandUpdateSchema = z.object({
-  name: nameField.optional(),
-});
-
-// ---------------------------------------------------------------------------
 // Products
 // ---------------------------------------------------------------------------
 
@@ -55,7 +32,6 @@ export const productBaseFields = {
   name: z.string().trim().min(1, 'Name is required').max(200),
   description: z.string().trim().max(2000).optional().nullable(),
   categoryId: z.string().min(1, 'Category is required').max(128),
-  brandId: z.string().min(1).max(128).optional().nullable(),
   costPrice: z.coerce.number().min(0, 'Cost price cannot be negative').max(1_000_000_000),
   retailPrice: z.coerce.number().min(0, 'Retail price cannot be negative').max(1_000_000_000),
   wholesalePrice: z.coerce
@@ -82,7 +58,6 @@ export const productUpdateSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(200).optional(),
   description: z.string().trim().max(2000).optional().nullable(),
   categoryId: z.string().min(1, 'Category is required').max(128).optional(),
-  brandId: z.string().min(1).max(128).optional().nullable(),
   costPrice: z.coerce
     .number()
     .min(0, 'Cost price cannot be negative')
@@ -106,7 +81,6 @@ export const productUpdateSchema = z.object({
 export const productListQuery = z.object({
   q: z.string().trim().max(200).optional(),
   categoryId: z.string().min(1).max(128).optional(),
-  brandId: z.string().min(1).max(128).optional(),
   status: statusSchema.optional(),
   ...sortSchema(
     ['name', 'sku', 'costPrice', 'retailPrice', 'wholesalePrice', 'createdAt', 'updatedAt'],

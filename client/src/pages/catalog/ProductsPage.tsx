@@ -16,8 +16,8 @@ import {
 import { PaginationControls } from '@/components/ui/PaginationControls';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { ApiClientError } from '@/lib/api';
-import { brandsApi, formatPrice, productsApi } from '@/lib/catalogApi';
-import type { Brand, ProductListItem } from '@/types/api';
+import { formatPrice, productsApi } from '@/lib/catalogApi';
+import type { ProductListItem } from '@/types/api';
 
 type TargetAction = { product: ProductListItem; status: 'ACTIVE' | 'INACTIVE' } | null;
 
@@ -27,7 +27,6 @@ export function ProductsPage() {
 
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
-  const [brandId, setBrandId] = useState('');
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
@@ -37,7 +36,6 @@ export function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
 
-  const [brands, setBrands] = useState<Brand[]>([]);
   const [target, setTarget] = useState<TargetAction>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProductListItem | null>(null);
   const [mutating, setMutating] = useState(false);
@@ -50,7 +48,6 @@ export function ProductsPage() {
       .list({
         q: q || undefined,
         status: (status as 'ACTIVE' | 'INACTIVE') || undefined,
-        brandId: brandId || undefined,
         page,
         pageSize,
         sortBy: 'name',
@@ -70,23 +67,7 @@ export function ProductsPage() {
     return () => {
       active = false;
     };
-  }, [q, status, brandId, page, pageSize, reloadTick]);
-
-  useEffect(() => {
-    let active = true;
-    void brandsApi
-      .list({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' })
-      .then((brandData) => {
-        if (!active) return;
-        setBrands(brandData.items);
-      })
-      .catch(() => {
-        // Filter options are non-critical; the list still renders.
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  }, [q, status, page, pageSize, reloadTick]);
 
   async function confirmToggle() {
     if (!target) return;
@@ -146,14 +127,14 @@ export function ProductsPage() {
       </div>
 
       <Card className="p-4">
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2">
           <div>
             <label htmlFor="product-search" className="block text-sm font-medium text-slate-700">
               Search
             </label>
             <TextInput
               id="product-search"
-              placeholder="Name, SKU, brand…"
+              placeholder="Name, SKU…"
               value={q}
               onChange={(e) => handleSearch(e.target.value)}
             />
@@ -175,26 +156,6 @@ export function ProductsPage() {
               <option value="INACTIVE">Inactive</option>
             </SelectInput>
           </div>
-          <div>
-            <label htmlFor="product-brand" className="block text-sm font-medium text-slate-700">
-              Brand
-            </label>
-            <SelectInput
-              id="product-brand"
-              value={brandId}
-              onChange={(e) => {
-                setBrandId(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">All</option>
-              {brands.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </SelectInput>
-          </div>
         </div>
       </Card>
 
@@ -212,7 +173,6 @@ export function ProductsPage() {
                 <tr>
                   <th className="px-4 py-3 font-medium">SKU</th>
                   <th className="px-4 py-3 font-medium">Name</th>
-                  <th className="px-4 py-3 font-medium">Brand</th>
                   <th className="px-4 py-3 text-right font-medium">Cost</th>
                   <th className="px-4 py-3 text-right font-medium">Retail</th>
                   <th className="px-4 py-3 text-right font-medium">Profit</th>
@@ -232,7 +192,6 @@ export function ProductsPage() {
                         {product.name}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{product.brand?.name ?? '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-slate-700">
                       {formatPrice(product.costPrice)}
                     </td>

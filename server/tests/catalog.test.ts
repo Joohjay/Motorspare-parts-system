@@ -949,53 +949,6 @@ afterEach(async () => {
 // ---------------------------------------------------------------------------
 
 describe('catalog API', () => {
-  describe('brands', () => {
-    test('ADMIN can create, update and list brands', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const created = await mutate(port, jar, 'POST', '/api/brands', { name: 'Honda' });
-        assert.equal(created.status, 201);
-        const id = (created.body.brand as Rec).id as string;
-        assert.ok(auditRecords.some((a) => a.action === 'BRAND_CREATED'));
-
-        const updated = await mutate(port, jar, 'PATCH', `/api/brands/${id}`, { name: 'Honda Moto' });
-        assert.equal(updated.status, 200);
-        assert.equal((updated.body.brand as Rec).name, 'Honda Moto');
-
-        const list = await request(port, jar, 'GET', '/api/brands?q=honda');
-        assert.equal((list.body.items as Rec[]).length, 1);
-      } finally {
-        await close();
-      }
-    });
-
-    test('duplicate brand name is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'POST', '/api/brands', { name: 'Bajaj' });
-        assert.equal(res.status, 409);
-        assert.equal((res.body.error as Rec).code, 'DUPLICATE_BRAND');
-      } finally {
-        await close();
-      }
-    });
-
-    test('deactivating a brand in use by products is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const brandId = brands.find((b) => b.name === 'Bajaj')!.id;
-        const res = await mutate(port, jar, 'PATCH', `/api/brands/${brandId}/status`, { status: 'INACTIVE' });
-        assert.equal(res.status, 400);
-        assert.equal((res.body.error as Rec).code, 'BRAND_IN_USE');
-      } finally {
-        await close();
-      }
-    });
-  });
-
   describe('products', () => {
     test('ADMIN can create a product with pricing', async () => {
       const { port, close } = await startServer();
@@ -1006,7 +959,6 @@ describe('catalog API', () => {
           name: 'Clutch Cable',
           description: 'OEM replacement',
           categoryId: categories[0]!.id,
-          brandId: null,
           costPrice: 600,
           retailPrice: 900,
           wholesalePrice: 700,
@@ -1019,7 +971,6 @@ describe('catalog API', () => {
         assert.equal(product.costPrice, 600);
         assert.equal(product.retailPrice, 900);
         assert.equal(product.wholesalePrice, 700);
-        assert.equal(product.brandId, null, 'unbranded product');
         assert.ok(auditRecords.some((a) => a.action === 'PRODUCT_CREATED'));
       } finally {
         await close();
@@ -1142,15 +1093,12 @@ describe('catalog API', () => {
       }
     });
 
-    test('product search matches name, brand and category', async () => {
+    test('product search matches name and category', async () => {
       const { port, close } = await startServer();
       try {
         const jar = assistantJar();
-        const byName = await request(port, jar, 'GET', '/api/products?q=brake');
-        assert.equal((byName.body.items as Rec[]).length, 2, 'matches product name/category');
-
-        const byBrand = await request(port, jar, 'GET', '/api/products?q=brembo');
-        assert.equal((byBrand.body.items as Rec[]).length, 1, 'matches brand name');
+        const byName = await request(port, jar, 'GET', '/api/products?q=chain');
+        assert.equal((byName.body.items as Rec[]).length, 1, 'matches product name');
 
         const byCategory = await request(port, jar, 'GET', '/api/products?q=engine');
         assert.equal((byCategory.body.items as Rec[]).length, 1, 'matches category name');
@@ -1159,15 +1107,12 @@ describe('catalog API', () => {
       }
     });
 
-    test('product search filters by status, category and brand', async () => {
+    test('product search filters by status and category', async () => {
       const { port, close } = await startServer();
       try {
         const jar = assistantJar();
         const categoryRes = await request(port, jar, 'GET', `/api/products?categoryId=${categories[0]!.id}`);
         assert.equal((categoryRes.body.items as Rec[]).length, 1);
-
-        const brandRes = await request(port, jar, 'GET', `/api/products?brandId=${brands[0]!.id}`);
-        assert.equal((brandRes.body.items as Rec[]).length, 1);
 
         const statusRes = await request(port, jar, 'GET', '/api/products?status=INACTIVE');
         assert.equal((statusRes.body.items as Rec[]).length, 0);
@@ -1253,7 +1198,7 @@ describe('catalog API', () => {
       const { port, close } = await startServer();
       try {
         const jar = assistantJar();
-        for (const path of ['/api/products', '/api/brands']) {
+        for (const path of ['/api/products']) {
           const read = await request(port, jar, 'GET', path);
           assert.equal(read.status, 200, `${path} readable by assistant`);
         }

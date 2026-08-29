@@ -691,8 +691,6 @@ interface ProductLike {
   reorderLevel: number;
   categoryId: string | null;
   categoryName: string | null;
-  brandId: string | null;
-  brandName: string | null;
   updatedAt: Date;
   inventory: { quantityOnHand: number; quantityReserved: number; weightedAverageCost: Prisma.Decimal; updatedAt: Date } | null;
 }
@@ -700,19 +698,16 @@ interface ProductLike {
 function productSearchWhere(query: {
   q?: string;
   categoryId?: string;
-  brandId?: string;
   status?: string;
 }): Prisma.ProductWhereInput {
   const and: Prisma.ProductWhereInput[] = [];
   if (query.status) and.push({ status: query.status as 'ACTIVE' | 'INACTIVE' });
   if (query.categoryId) and.push({ categoryId: query.categoryId });
-  if (query.brandId) and.push({ brandId: query.brandId });
   if (query.q) {
     and.push({
       OR: [
         { name: { contains: query.q, mode: 'insensitive' } },
         { sku: { contains: query.q, mode: 'insensitive' } },
-        { brand: { is: { name: { contains: query.q, mode: 'insensitive' } } } },
         { category: { is: { name: { contains: query.q, mode: 'insensitive' } } } },
       ],
     });
@@ -735,8 +730,6 @@ function toListRow(product: ProductLike) {
     name: product.name,
     categoryId: product.categoryId,
     categoryName: product.categoryName,
-    brandId: product.brandId,
-    brandName: product.brandName,
     quantityOnHand: onHand,
     quantityReserved: reserved,
     available,
@@ -750,7 +743,6 @@ function toListRow(product: ProductLike) {
 export async function listInventory(query: {
   q?: string;
   categoryId?: string;
-  brandId?: string;
   status?: string;
   stockStatus?: StockStatus;
   sortBy?: string;
@@ -766,7 +758,6 @@ export async function listInventory(query: {
     where: productSearchWhere(query),
     include: {
       inventory: true,
-      brand: { select: { id: true, name: true } },
       category: { select: { id: true, name: true } },
     },
     take: INVENTORY_LIST_LIMIT,
@@ -782,8 +773,6 @@ export async function listInventory(query: {
       reorderLevel: p.reorderLevel,
       categoryId: p.categoryId,
       categoryName: p.category?.name ?? null,
-      brandId: p.brandId,
-      brandName: p.brand?.name ?? null,
       updatedAt: p.updatedAt,
       inventory: p.inventory,
     }),
@@ -814,7 +803,6 @@ export async function getInventory(productId: string) {
     where: { id: productId },
     include: {
       inventory: true,
-      brand: { select: { id: true, name: true } },
       category: { select: { id: true, name: true } },
     },
   });
@@ -832,8 +820,6 @@ export async function getInventory(productId: string) {
     name: product.name,
     categoryId: product.categoryId,
     categoryName: product.category?.name ?? null,
-    brandId: product.brandId,
-    brandName: product.brand?.name ?? null,
     quantityOnHand: onHand,
     quantityReserved: reserved,
     available,
@@ -951,7 +937,6 @@ export async function listReservations(query: {
 export async function listLowStock(query: {
   q?: string;
   categoryId?: string;
-  brandId?: string;
   stockStatus?: 'LOW_STOCK' | 'OUT_OF_STOCK';
   page?: number;
   pageSize?: number;
@@ -963,7 +948,6 @@ export async function listLowStock(query: {
     where: productSearchWhere(query),
     include: {
       inventory: true,
-      brand: { select: { id: true, name: true } },
       category: { select: { id: true, name: true } },
     },
     take: INVENTORY_LIST_LIMIT,
@@ -980,8 +964,6 @@ export async function listLowStock(query: {
         reorderLevel: p.reorderLevel,
         categoryId: p.categoryId,
         categoryName: p.category?.name ?? null,
-        brandId: p.brandId,
-        brandName: p.brand?.name ?? null,
         updatedAt: p.updatedAt,
         inventory: p.inventory,
       }),

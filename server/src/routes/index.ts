@@ -1,7 +1,6 @@
 import { Router } from 'express';
 
 import authRouter from './auth.js';
-import brandsRouter from './brands.js';
 import financeRouter from './finance.js';
 import healthRouter from './health.js';
 import inventoryRouter from './inventory.js';
@@ -18,7 +17,6 @@ router.use('/sales', salesRouter);
 router.use('/finance', financeRouter);
 router.use('/health', healthRouter);
 router.use('/auth', authRouter);
-router.use('/brands', brandsRouter);
 router.use('/products', productsRouter);
 router.use('/inventory', inventoryRouter);
 router.use('/dashboard', dashboardRouter);

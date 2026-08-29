@@ -199,7 +199,6 @@ export function InventoryDetailPage() {
           {inventory && (
             <p className="mt-1 text-sm text-slate-500">
               <span className="font-mono text-xs">{inventory.sku}</span>
-              {inventory.brandName ? ` · ${inventory.brandName}` : ''}
             </p>
           )}
         </div>

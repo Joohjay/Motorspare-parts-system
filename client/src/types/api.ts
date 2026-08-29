@@ -67,20 +67,7 @@ export interface Paginated<T> {
 
 // Categories removed (feature removed).
 
-// Brands --------------------------------------------------------------------
-
-export interface Brand {
-  id: string;
-  name: string;
-  status: CatalogStatus;
-  productCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface BrandInput {
-  name: string;
-}
+// Brands removed (feature removed).
 
 // Products ------------------------------------------------------------------
 
@@ -89,11 +76,9 @@ export interface ProductListItem {
   sku: string;
   name: string;
   status: CatalogStatus;
-  brandId: string | null;
   costPrice: number | string;
   retailPrice: number | string;
   wholesalePrice: number | string;
-  brand: { id: string; name: string; status: CatalogStatus } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -108,7 +93,6 @@ export interface ProductInput {
   sku: string;
   name: string;
   description?: string | null;
-  brandId?: string | null;
   costPrice: number;
   retailPrice: number;
   wholesalePrice: number;
@@ -146,8 +130,6 @@ export interface InventoryListItem {
   productId: string;
   sku: string;
   name: string;
-  brandId: string | null;
-  brandName: string | null;
   quantityOnHand: number;
   available: number;
   weightedAverageCost: string;
