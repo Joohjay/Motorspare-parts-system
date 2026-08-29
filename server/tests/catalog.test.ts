@@ -64,6 +64,9 @@ let variants: Rec[] = [];
 let products: Rec[] = [];
 let identifiers: Rec[] = [];
 let compatibilities: Rec[] = [];
+let inventories: Rec[] = [];
+let inventoryTransactions: Rec[] = [];
+let notifications: Rec[] = [];
 let saleItemCount = 0;
 const auditRecords: Array<Record<string, unknown>> = [];
 
@@ -408,6 +411,7 @@ const db = {
       return Promise.resolve(updated);
     }),
     count: mock.fn(() => Promise.resolve(Object.values(usersById).length)),
+    findMany: mock.fn(() => Promise.resolve([])),
   },
   category: {
     findUnique: findById(() => categories),
@@ -603,21 +607,84 @@ const db = {
   },
   saleItem: { count: mock.fn(() => Promise.resolve(saleItemCount)) },
   saleReturnItem: { count: mock.fn(() => Promise.resolve(0)) },
-  inventoryTransaction: { count: mock.fn(() => Promise.resolve(0)) },
   stockReservation: { count: mock.fn(() => Promise.resolve(0)) },
   supplierProduct: { count: mock.fn(() => Promise.resolve(0)) },
   purchaseOrderItem: { count: mock.fn(() => Promise.resolve(0)) },
   purchaseItem: { count: mock.fn(() => Promise.resolve(0)) },
   purchaseReturnItem: { count: mock.fn(() => Promise.resolve(0)) },
-  inventory: { deleteMany: mock.fn(() => Promise.resolve({ count: 0 })) },
+  inventory: {
+    deleteMany: mock.fn((args: { where: { productId: string } }) => {
+      const before = inventories.length;
+      inventories = inventories.filter((r) => r.productId !== args.where.productId);
+      return Promise.resolve({ count: before - inventories.length });
+    }),
+    update: mock.fn((args: { where: { id: string }; data: Rec }) => {
+      const row = inventories.find((r) => r.id === args.where.id);
+      if (!row) return Promise.resolve(null);
+      Object.assign(row, args.data, { updatedAt: new Date('2026-02-01T00:00:00Z') });
+      return Promise.resolve(row);
+    }),
+  },
+  inventoryTransaction: {
+    create: mock.fn((args: { data: Rec }) => {
+      const rec = {
+        id: nextId('txn'),
+        productId: args.data.productId,
+        inventoryId: args.data.inventoryId,
+        type: args.data.type,
+        quantity: args.data.quantity,
+        unitCost: args.data.unitCost ?? null,
+        balanceAfter: args.data.balanceAfter,
+        referenceId: args.data.referenceId ?? null,
+        note: args.data.note ?? null,
+        createdById: args.data.createdById ?? null,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+      };
+      inventoryTransactions.push(rec);
+      return Promise.resolve(rec);
+    }),
+    count: mock.fn(() => Promise.resolve(inventoryTransactions.length)),
+  },
+  notification: {
+    findFirst: mock.fn(() => Promise.resolve(null)),
+    create: mock.fn((args: { data: Rec }) => {
+      const rec = { id: nextId('notif'), ...args.data, createdAt: new Date('2026-01-01T00:00:00Z') };
+      notifications.push(rec);
+      return Promise.resolve(rec);
+    }),
+  },
   auditLog: {
     create: mock.fn((args: { data: Record<string, unknown> }) => {
       auditRecords.push(args.data);
       return Promise.resolve(args.data);
     }),
   },
-  $transaction: mock.fn((operations: Promise<unknown>[]) => Promise.all(operations)),
-  $queryRaw: mock.fn(() => Promise.resolve([])),
+  $transaction: mock.fn(async (arg: unknown) => {
+    if (typeof arg === 'function') return arg(db);
+    if (Array.isArray(arg)) return Promise.all(arg);
+    return Promise.all(arg as Promise<unknown>[]);
+  }),
+  // Emulates the upsert-and-lock statement in lockInventory: creates the
+  // inventory row on first sight, then returns rows for the locked productId.
+  $queryRaw: mock.fn((query: unknown, ...rest: unknown[]) => {
+    const values = (query as { values?: unknown[] })?.values ?? rest;
+    const productId = String(values[0] ?? '');
+    let matches = inventories.filter((i) => i.productId === productId);
+    if (matches.length === 0) {
+      const row: Rec = {
+        id: nextId('inv'),
+        productId,
+        quantityOnHand: 0,
+        quantityReserved: 0,
+        weightedAverageCost: 0,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+      };
+      inventories.push(row);
+      matches = [row];
+    }
+    return Promise.resolve(matches);
+  }),
 };
 
 (globalThis as unknown as { __MAKIRE_PRISMA__: unknown }).__MAKIRE_PRISMA__ = db;
@@ -862,6 +929,9 @@ function resetFixtures(): void {
   };
   auditRecords.length = 0;
   saleItemCount = 0;
+  inventories = [];
+  inventoryTransactions = [];
+  notifications = [];
   seedCatalog();
 }
 
@@ -951,6 +1021,55 @@ describe('catalog API', () => {
         assert.equal(product.wholesalePrice, 700);
         assert.equal(product.brandId, null, 'unbranded product');
         assert.ok(auditRecords.some((a) => a.action === 'PRODUCT_CREATED'));
+      } finally {
+        await close();
+      }
+    });
+
+    test('ADMIN can create a product with initial quantity on hand', async () => {
+      const { port, close } = await startServer();
+      try {
+        const jar = adminJar();
+        const res = await mutate(port, jar, 'POST', '/api/products', {
+          sku: 'NEW-SKU-INITIAL',
+          name: 'Spark Plug',
+          categoryId: categories[0]!.id,
+          costPrice: 800,
+          retailPrice: 1200,
+          wholesalePrice: 1000,
+          quantityOnHand: 25,
+        });
+        assert.equal(res.status, 201);
+        const product = res.body.product as Rec;
+        assert.equal(product.sku, 'NEW-SKU-INITIAL');
+        const inv = inventories.find((i) => i.productId === product.id);
+        assert.ok(inv, 'inventory row should be created for a product with initial stock');
+        assert.equal(inv!.quantityOnHand, 25);
+        const txn = inventoryTransactions.find((t) => t.productId === product.id);
+        assert.ok(txn, 'an inventory transaction should be recorded for initial stock');
+        assert.equal(txn!.type, 'INITIAL');
+        assert.equal(txn!.quantity, 25);
+      } finally {
+        await close();
+      }
+    });
+
+    test('ADMIN can create a product without initial quantity (no inventory row)', async () => {
+      const { port, close } = await startServer();
+      try {
+        const jar = adminJar();
+        const res = await mutate(port, jar, 'POST', '/api/products', {
+          sku: 'NEW-SKU-NOQTY',
+          name: 'Oil Filter',
+          categoryId: categories[0]!.id,
+          costPrice: 400,
+          retailPrice: 700,
+          wholesalePrice: 550,
+        });
+        assert.equal(res.status, 201);
+        const product = res.body.product as Rec;
+        const inv = inventories.find((i) => i.productId === product.id);
+        assert.equal(inv, undefined, 'no inventory row should be created without initial quantity');
       } finally {
         await close();
       }

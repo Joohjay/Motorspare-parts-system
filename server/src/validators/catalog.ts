@@ -69,6 +69,12 @@ export const productBaseFields = {
 
 export const productCreateSchema = z.object({
   ...productBaseFields,
+  quantityOnHand: z.coerce
+    .number()
+    .int('Quantity must be a whole number')
+    .min(0, 'Quantity cannot be negative')
+    .max(1_000_000_000)
+    .optional(),
 });
 
 export const productUpdateSchema = z.object({

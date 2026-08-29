@@ -115,6 +115,7 @@ export interface ProductInput {
   minimumStock?: number;
   reorderLevel?: number;
   status?: CatalogStatus;
+  quantityOnHand?: number;
 }
 
 export interface ProductStatusInput {

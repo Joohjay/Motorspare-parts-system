@@ -6,6 +6,8 @@ import prisma from '../lib/prisma.js';
 import { recordAudit } from '../utils/audit.js';
 import { orderBy, paginate, type PaginationResult } from '../utils/pagination.js';
 import { AUDIT } from '../constants/auditActions.js';
+import { InventoryTransactionType } from '@prisma/client';
+import { increaseStockTx } from './inventoryService.js';
 
 export type Status = 'ACTIVE' | 'INACTIVE';
 
@@ -177,6 +179,7 @@ export async function createProduct(
     minimumStock: number;
     reorderLevel: number;
     status?: Status;
+    quantityOnHand?: number;
   },
   ctx: { request: Request; actor: { id: string } },
 ): Promise<ProductDetail> {
@@ -184,20 +187,41 @@ export async function createProduct(
   await resolveBrand(input.brandId);
   await assertSkuAvailable(input.sku);
 
-  const product = await prisma.product.create({
-    data: {
-      sku: input.sku.trim(),
-      name: input.name.trim(),
-      description: input.description ?? null,
-      categoryId: input.categoryId,
-      brandId: input.brandId ?? null,
-      costPrice: input.costPrice,
-      retailPrice: input.retailPrice,
-      wholesalePrice: input.wholesalePrice,
-      minimumStock: input.minimumStock,
-      reorderLevel: input.reorderLevel,
-      status: input.status ?? 'ACTIVE',
-    },
+  const quantityOnHand = input.quantityOnHand ?? 0;
+
+  const product = await prisma.$transaction(async (tx) => {
+    const created = await tx.product.create({
+      data: {
+        sku: input.sku.trim(),
+        name: input.name.trim(),
+        description: input.description ?? null,
+        categoryId: input.categoryId,
+        brandId: input.brandId ?? null,
+        costPrice: input.costPrice,
+        retailPrice: input.retailPrice,
+        wholesalePrice: input.wholesalePrice,
+        minimumStock: input.minimumStock,
+        reorderLevel: input.reorderLevel,
+        status: input.status ?? 'ACTIVE',
+      },
+    });
+
+    if (quantityOnHand > 0) {
+      await increaseStockTx(tx, {
+        productId: created.id,
+        quantity: quantityOnHand,
+        unitCost: input.costPrice,
+        type: InventoryTransactionType.INITIAL,
+        note: 'Initial stock on hand',
+        createdById: ctx.actor.id,
+      });
+    }
+
+    return created;
+  });
+
+  const detail = await prisma.product.findUnique({
+    where: { id: product.id },
     include: detailInclude,
   });
 
@@ -213,10 +237,11 @@ export async function createProduct(
       categoryId: product.categoryId,
       brandId: product.brandId,
       costPrice: product.costPrice,
+      quantityOnHand,
     },
   });
 
-  return toDetail(product);
+  return toDetail(detail!);
 }
 
 export async function updateProduct(

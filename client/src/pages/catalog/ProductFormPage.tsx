@@ -31,6 +31,7 @@ export function ProductFormPage() {
   const [wholesalePrice, setWholesalePrice] = useState('');
   const [minimumStock, setMinimumStock] = useState('0');
   const [reorderLevel, setReorderLevel] = useState('0');
+  const [quantityOnHand, setQuantityOnHand] = useState('0');
   const [status, setStatus] = useState<CatalogStatus>('ACTIVE');
 
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -121,6 +122,12 @@ export function ProductFormPage() {
           status,
         });
       } else {
+        const qty = Number(quantityOnHand);
+        if (!Number.isInteger(qty) || qty < 0) {
+          setError('Initial quantity on hand must be a whole number of 0 or more.');
+          setSubmitting(false);
+          return;
+        }
         await productsApi.create({
           sku: sku.trim(),
           name: name.trim(),
@@ -131,6 +138,7 @@ export function ProductFormPage() {
           wholesalePrice: wholesale,
           minimumStock: minStock,
           reorderLevel: reorder,
+          quantityOnHand: qty,
         });
       }
       navigate('/catalog/products');
@@ -240,6 +248,22 @@ export function ProductFormPage() {
                 onChange={(e) => setReorderLevel(e.target.value)}
               />
             </Field>
+            {!isEdit && (
+              <Field
+                label="Initial quantity on hand"
+                htmlFor="product-qty"
+                hint="Optional — how many units are already in stock. Leave 0 if none."
+              >
+                <TextInput
+                  id="product-qty"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={quantityOnHand}
+                  onChange={(e) => setQuantityOnHand(e.target.value)}
+                />
+              </Field>
+            )}
             {isEdit && (
               <Field label="Status" htmlFor="product-status">
                 <SelectInput
