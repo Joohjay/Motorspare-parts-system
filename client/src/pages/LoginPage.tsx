@@ -132,7 +132,7 @@ export function LoginPage(): ReactElement {
         <MotorcycleArt className="mt-8 w-full max-w-md" />
         <h2 className="mt-6 text-center text-2xl font-bold tracking-tight">Motorcycle Spare Parts Management System</h2>
         <p className="mt-3 max-w-sm text-center text-sm leading-relaxed text-slate-400">
-          Stock levels, point of sale, suppliers and credit — everything that keeps
+          Stock levels, point of sale and expenses — everything that keeps
           the wheels of the shop turning, in one place.
         </p>
       </section>

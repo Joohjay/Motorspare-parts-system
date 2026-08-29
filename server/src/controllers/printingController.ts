@@ -5,7 +5,7 @@ import { getPublicSettings, getSettingValue } from '../services/settingsService.
 import * as salesService from '../services/salesService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { requireActor } from '../utils/authActor.js';
-import { idParamSchema } from '../validators/purchasing.js';
+import { idParamSchema } from '../validators/catalog.js';
 
 export const listPrinters = asyncHandler(async (_req: Request, res: Response) => {
   requireActor(_req);

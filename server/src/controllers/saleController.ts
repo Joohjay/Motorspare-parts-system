@@ -9,7 +9,7 @@ import {
   saleListQuery,
   saleVoidSchema,
 } from '../validators/sales.js';
-import { idParamSchema } from '../validators/purchasing.js';
+import { idParamSchema } from '../validators/catalog.js';
 
 export const createSale = asyncHandler(async (req: Request, res: Response) => {
   const body = saleCreateSchema.parse(req.body);

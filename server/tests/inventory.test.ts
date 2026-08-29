@@ -869,7 +869,7 @@ describe('inventory — mock unit & API tests', () => {
       assert.equal(txn.quantity, 10);
       assert.equal(txn.balanceAfter, 10);
       assert.equal(Number(txn.unitCost), 100);
-      assert.equal(txn.type, 'PURCHASE');
+      assert.equal(txn.type, 'ADJUSTMENT');
     });
 
     test('weighted average cost is recomputed on stock-in', async () => {

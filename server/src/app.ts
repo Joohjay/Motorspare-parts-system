@@ -101,10 +101,6 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.use(express.json({ limit: '100kb' }));
   // Sales can be larger (many line items) — 512KB
   app.use('/api/sales', express.json({ limit: '512kb' }));
-  // Purchases — 512KB
-  app.use('/api/purchases', express.json({ limit: '512kb' }));
-  // Purchase orders — 512KB
-  app.use('/api/purchase-orders', express.json({ limit: '512kb' }));
 
   app.use(cookieParser());
   app.use(requestContext());

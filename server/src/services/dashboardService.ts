@@ -1,4 +1,4 @@
-import { Prisma, PurchaseOrderStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import prisma from '../lib/prisma.js';
 import {
@@ -39,7 +39,7 @@ export async function getDashboard(role: 'ADMIN' | 'ASSISTANT') {
   monthStart.setHours(0, 0, 0, 0);
   const topProductsRange = { from: monthStart, to: range.to };
 
-  const [recentSales, recentPurchases, pendingPurchaseOrders, topProductRows, supplierCreditAgg, expenseTotals] =
+  const [recentSales, topProductRows, expenseTotals] =
     await Promise.all([
       prisma.sale.findMany({
         orderBy: { createdAt: 'desc' },
@@ -53,22 +53,6 @@ export async function getDashboard(role: 'ADMIN' | 'ASSISTANT') {
           createdBy: { select: { fullName: true } },
         },
       }),
-      prisma.purchase.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        select: {
-          id: true,
-          purchaseNumber: true,
-          status: true,
-          totalAmount: true,
-          createdAt: true,
-          supplier: { select: { name: true } },
-        },
-      }),
-      prisma.purchaseOrder.aggregate({
-        where: { status: { in: [PurchaseOrderStatus.PENDING, PurchaseOrderStatus.PARTIALLY_RECEIVED] } },
-        _count: { _all: true },
-      }),
       prisma.saleItem.groupBy({
         by: ['productId'],
         where: {
@@ -77,11 +61,6 @@ export async function getDashboard(role: 'ADMIN' | 'ASSISTANT') {
         _sum: { quantity: true, lineTotal: true },
         orderBy: { _sum: { quantity: 'desc' } },
         take: 5,
-      }),
-      prisma.supplierCreditAccount.aggregate({
-        where: { status: 'ACTIVE' },
-        _count: { _all: true },
-        _sum: { outstandingBalance: true },
       }),
       isAdmin ? expenseSummary(range) : Promise.resolve(null),
     ]);
@@ -124,19 +103,6 @@ export async function getDashboard(role: 'ADMIN' | 'ASSISTANT') {
       createdAt: sale.createdAt,
       cashierName: sale.createdBy.fullName,
     })),
-    recentPurchases: recentPurchases.map((purchase) => ({
-      id: purchase.id,
-      purchaseNumber: purchase.purchaseNumber,
-      status: purchase.status,
-      totalAmount: money(purchase.totalAmount),
-      createdAt: purchase.createdAt,
-      supplierName: purchase.supplier.name,
-    })),
-    pendingPurchaseOrders: pendingPurchaseOrders?._count._all ?? 0,
-    supplierCredit: {
-      activeAccounts: supplierCreditAgg?._count._all ?? 0,
-      totalOutstanding: money(supplierCreditAgg?._sum.outstandingBalance ?? 0),
-    },
     topProductsThisMonth: topProductRows.map((row) => {
       const product = productById.get(row.productId);
       return {

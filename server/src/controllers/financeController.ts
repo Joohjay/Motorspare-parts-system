@@ -12,7 +12,7 @@ import {
   expenseUpdateSchema,
   reportRangeQuery,
 } from '../validators/sales.js';
-import { idParamSchema } from '../validators/purchasing.js';
+import { idParamSchema } from '../validators/catalog.js';
 
 // ---------------------------------------------------------------------------
 // Expenses

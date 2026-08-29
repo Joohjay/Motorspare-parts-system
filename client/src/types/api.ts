@@ -276,183 +276,8 @@ export interface InventoryMutationResult {
   notificationsCreated: number;
 }
 
-// ---------------------------------------------------------------------------
-// Purchasing (suppliers, purchase orders, receiving, credit)
-// ---------------------------------------------------------------------------
-
-export type SupplierStatus = 'ACTIVE' | 'INACTIVE';
-export type SupplierProductStatus = 'ACTIVE' | 'INACTIVE';
-export type PurchaseOrderStatus = 'DRAFT' | 'PENDING' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
-export type PurchaseStatus = 'COMPLETED';
-export type PurchasePaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID';
 export type PaymentMethod = 'CASH' | 'BANK' | 'MPESA' | 'CHEQUE' | 'OTHER';
 
-export interface Supplier {
-  id: string;
-  name: string;
-  contactPerson: string | null;
-  phone: string | null;
-  email: string | null;
-  address: string | null;
-  notes: string | null;
-  status: SupplierStatus;
-  createdAt: string;
-  updatedAt: string;
-  creditAccount: { outstandingBalance: string; status: 'ACTIVE' | 'CLOSED' } | null;
-}
-
-export interface SupplierInput {
-  name: string;
-  contactPerson?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  address?: string | null;
-  notes?: string | null;
-}
-
-export interface SupplierProduct {
-  id: string;
-  supplierId: string;
-  productId: string;
-  supplierCode: string | null;
-  unitCost: string | null;
-  leadTimeDays: number | null;
-  status: SupplierProductStatus;
-  createdAt: string;
-  updatedAt: string;
-  product: { id: string; sku: string; name: string; status: CatalogStatus };
-}
-
-export interface SupplierProductInput {
-  productId: string;
-  supplierCode?: string | null;
-  unitCost?: number | null;
-  leadTimeDays?: number | null;
-}
-
-export interface PurchaseOrderItem {
-  id: string;
-  productId: string;
-  quantityOrdered: number;
-  unitCost: string;
-  notes: string | null;
-  product: { id: string; sku: string; name: string; status: CatalogStatus };
-  received: number;
-  remaining: number;
-}
-
-export interface PurchaseOrder {
-  id: string;
-  orderNumber: string;
-  supplierId: string;
-  status: PurchaseOrderStatus;
-  orderDate: string;
-  expectedDelivery: string | null;
-  totalAmount: string;
-  notes: string | null;
-  createdAt: string;
-  updatedAt: string;
-  supplier: { id: string; name: string; status: SupplierStatus };
-  createdBy: { id: string; fullName: string } | null;
-  items?: PurchaseOrderItem[];
-}
-
-export interface PurchaseOrderListItem extends PurchaseOrder {
-  itemCount?: number;
-}
-
-export interface PurchaseOrderItemInput {
-  productId: string;
-  quantityOrdered: number;
-  unitCost: number;
-  notes?: string | null;
-}
-
-export interface PurchaseOrderInput {
-  supplierId: string;
-  expectedDelivery?: string | null;
-  notes?: string | null;
-  items: PurchaseOrderItemInput[];
-}
-
-export interface PurchaseItem {
-  id: string;
-  purchaseId: string;
-  purchaseOrderItemId: string | null;
-  productId: string;
-  quantityOrdered: number;
-  quantityReceived: number;
-  quantityDamaged: number;
-  quantityMissing: number;
-  quantityAccepted: number;
-  unitCost: string;
-  lineTotal: string;
-  product: { id: string; sku: string; name: string; status: CatalogStatus };
-}
-
-export interface Purchase {
-  id: string;
-  purchaseNumber: string;
-  purchaseOrderId: string | null;
-  supplierId: string;
-  invoiceReference: string | null;
-  status: PurchaseStatus;
-  paymentStatus: PurchasePaymentStatus;
-  receivedAt: string;
-  totalAmount: string;
-  notes: string | null;
-  createdAt: string;
-  supplier: { id: string; name: string; status: SupplierStatus };
-  purchaseOrder: { id: string; orderNumber: string; status: PurchaseOrderStatus } | null;
-  creditAccount: { id: string; outstandingBalance: string; status: 'ACTIVE' | 'CLOSED' } | null;
-  createdBy: { id: string; fullName: string } | null;
-  items: PurchaseItem[];
-}
-
-export interface ReceiveItemInput {
-  purchaseOrderItemId?: string;
-  productId: string;
-  quantityReceived: number;
-  quantityDamaged?: number;
-  quantityMissing?: number;
-  unitCost?: number;
-  quantityOrdered?: number;
-}
-
-export interface PurchaseCreateInput {
-  purchaseOrderId?: string;
-  supplierId?: string;
-  invoiceReference?: string | null;
-  notes?: string | null;
-  items: ReceiveItemInput[];
-}
-
-export interface SupplierCreditAccount {
-  id: string;
-  supplierId: string;
-  creditLimit: string;
-  outstandingBalance: string;
-  status: 'ACTIVE' | 'CLOSED';
-  openedAt: string;
-  closedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  payments: SupplierCreditPayment[];
-  _count: { payments: number; purchases: number };
-}
-
-export interface SupplierCreditPayment {
-  id: string;
-  accountId: string;
-  purchaseId: string | null;
-  amount: string;
-  paymentMethod: PaymentMethod;
-  reference: string | null;
-  paidAt: string;
-  createdAt: string;
-  purchase: { id: string; purchaseNumber: string } | null;
-  createdBy: { id: string; fullName: string } | null;
-}
 // ---------------------------------------------------------------------------
 // Sales & customers (Stage 7)
 // ---------------------------------------------------------------------------
@@ -664,19 +489,6 @@ export interface Dashboard {
     createdAt: string;
     cashierName: string;
   }>;
-  recentPurchases: Array<{
-    id: string;
-    purchaseNumber: string;
-    status: PurchaseOrderStatus | PurchaseStatus;
-    totalAmount: number;
-    createdAt: string;
-    supplierName: string;
-  }>;
-  pendingPurchaseOrders: number;
-  supplierCredit: {
-    activeAccounts: number;
-    totalOutstanding: number;
-  };
   topProductsThisMonth: DashboardTopProduct[];
   // ADMIN-only
   todayFinancials?: {
@@ -690,9 +502,7 @@ export interface Dashboard {
 export type NotificationType =
   | 'GENERAL'
   | 'LOW_STOCK'
-  | 'OUT_OF_STOCK'
-  | 'SUPPLIER_PAYMENT_DUE'
-  | 'PURCHASE_ORDER_PENDING';
+  | 'OUT_OF_STOCK';
 
 export interface AppNotification {
   id: string;

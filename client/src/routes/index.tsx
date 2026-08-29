@@ -18,10 +18,6 @@ const ProductFormPage = lazy(() => import('@/pages/catalog/ProductFormPage').the
 const ProductsPage = lazy(() => import('@/pages/catalog/ProductsPage').then((m) => ({ default: m.ProductsPage })));
 const InventoryDetailPage = lazy(() => import('@/pages/inventory/InventoryDetailPage').then((m) => ({ default: m.InventoryDetailPage })));
 const InventoryPage = lazy(() => import('@/pages/inventory/InventoryPage').then((m) => ({ default: m.InventoryPage })));
-const PurchaseOrdersPage = lazy(() => import('@/pages/purchasing/PurchaseOrdersPage').then((m) => ({ default: m.PurchaseOrdersPage })));
-const PurchasesPage = lazy(() => import('@/pages/purchasing/PurchasesPage').then((m) => ({ default: m.PurchasesPage })));
-const SupplierCreditPage = lazy(() => import('@/pages/purchasing/SupplierCreditPage').then((m) => ({ default: m.SupplierCreditPage })));
-const SuppliersPage = lazy(() => import('@/pages/purchasing/SuppliersPage').then((m) => ({ default: m.SuppliersPage })));
 const PosPage = lazy(() => import('@/pages/sales/PosPage').then((m) => ({ default: m.PosPage })));
 const SaleDetailPage = lazy(() => import('@/pages/sales/SaleDetailPage').then((m) => ({ default: m.SaleDetailPage })));
 const ReceiptPage = lazy(() => import('@/pages/sales/ReceiptPage').then((m) => ({ default: m.ReceiptPage })));
@@ -63,10 +59,6 @@ export const router = createBrowserRouter([
           { path: 'catalog/products', element: <SuspenseWrapper><ProductsPage /></SuspenseWrapper> },
           { path: 'catalog/brands', element: <SuspenseWrapper><BrandsPage /></SuspenseWrapper> },
           { path: 'catalog/motorcycles', element: <SuspenseWrapper><MotorcyclesPage /></SuspenseWrapper> },
-          { path: 'purchasing/suppliers', element: <SuspenseWrapper><SuppliersPage /></SuspenseWrapper> },
-          { path: 'purchasing/purchase-orders', element: <SuspenseWrapper><PurchaseOrdersPage /></SuspenseWrapper> },
-          { path: 'purchasing/purchases', element: <SuspenseWrapper><PurchasesPage /></SuspenseWrapper> },
-          { path: 'purchasing/credit', element: <SuspenseWrapper><SupplierCreditPage /></SuspenseWrapper> },
           { path: 'pos', element: <SuspenseWrapper><PosPage /></SuspenseWrapper> },
           { path: 'sales', element: <SuspenseWrapper><SalesHistoryPage /></SuspenseWrapper> },
           { path: 'sales/:id', element: <SuspenseWrapper><SaleDetailPage /></SuspenseWrapper> },

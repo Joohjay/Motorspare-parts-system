@@ -264,7 +264,7 @@ function auditRecord(input: { action: string; entityType: string; entityId: stri
 // Mutations
 // ---------------------------------------------------------------------------
 
-/** Records stock coming in (purchase receipt, return, initial stock). */
+/** Records stock coming in (adjustment, initial stock). */
 export async function increaseStock(
   input: MovementInput & { unitCost: number },
 ): Promise<{ inventory: InventorySnapshot; transactionId: string; notificationsCreated: number }> {
@@ -286,8 +286,8 @@ export async function increaseStock(
 
 /**
  * Transaction-aware stock-in. Used both by increaseStock and by outer
- * transactions (e.g. PO receiving) that must mutate inventory atomically with
- * their own records. Never call outside a transaction.
+ * transactions that must mutate inventory atomically with their own records
+ * (e.g. sales). Never call outside a transaction.
  */
 export async function increaseStockTx(
   tx: Tx,
@@ -295,7 +295,7 @@ export async function increaseStockTx(
 ): Promise<{ inventory: InventorySnapshot; transactionId: string; notificationsCreated: number }> {
   assertPositiveQuantity(input.quantity);
   assertNonNegativeCost(input.unitCost);
-  const type = input.type ?? InventoryTransactionType.PURCHASE;
+  const type = input.type ?? InventoryTransactionType.ADJUSTMENT;
 
   const product = await ensureProduct(tx, input.productId);
   const inv = await lockInventory(tx, input.productId);
