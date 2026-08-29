@@ -52,12 +52,6 @@ export interface ApiErrorBody {
 // ---------------------------------------------------------------------------
 
 export type CatalogStatus = 'ACTIVE' | 'INACTIVE';
-export type IdentifierType =
-  | 'PART_NUMBER'
-  | 'OEM_NUMBER'
-  | 'ALTERNATIVE_NUMBER'
-  | 'SUPPLIER_NUMBER'
-  | 'OTHER';
 
 export interface PaginationMeta {
   page: number;
@@ -88,89 +82,7 @@ export interface BrandInput {
   name: string;
 }
 
-// Motorcycles ---------------------------------------------------------------
-
-export interface MotorcycleMake {
-  id: string;
-  name: string;
-  status: CatalogStatus;
-  modelCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface MotorcycleMakeDetail extends MotorcycleMake {
-  models: { id: string; name: string; status: CatalogStatus }[];
-}
-
-export interface MotorcycleModel {
-  id: string;
-  makeId: string;
-  name: string;
-  status: CatalogStatus;
-  make: { id: string; name: string; status: CatalogStatus };
-  variantCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface MotorcycleModelDetail extends MotorcycleModel {
-  variants: {
-    id: string;
-    name: string;
-    status: CatalogStatus;
-    yearFrom: number | null;
-    yearTo: number | null;
-  }[];
-}
-
-export interface MotorcycleVariant {
-  id: string;
-  modelId: string;
-  name: string;
-  yearFrom: number | null;
-  yearTo: number | null;
-  status: CatalogStatus;
-  model: {
-    id: string;
-    name: string;
-    status: CatalogStatus;
-    make: { id: string; name: string; status: CatalogStatus };
-  };
-  compatibilityCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
 // Products ------------------------------------------------------------------
-
-export interface Identifier {
-  id: string;
-  type: IdentifierType;
-  value: string;
-}
-
-export interface IdentifierInput {
-  type: IdentifierType;
-  value: string;
-}
-
-export interface CompatibilityEntry {
-  id: string;
-  notes: string | null;
-  variant: {
-    id: string;
-    name: string;
-    yearFrom: number | null;
-    yearTo: number | null;
-    model: { id: string; name: string; make: { id: string; name: string } };
-  };
-}
-
-export interface CompatibilityInput {
-  variantId: string;
-  notes?: string | null;
-}
 
 export interface ProductListItem {
   id: string;
@@ -178,11 +90,10 @@ export interface ProductListItem {
   name: string;
   status: CatalogStatus;
   brandId: string | null;
+  costPrice: number | string;
   retailPrice: number | string;
   wholesalePrice: number | string;
   brand: { id: string; name: string; status: CatalogStatus } | null;
-  identifiers: Identifier[];
-  compatibilityCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -191,7 +102,6 @@ export interface ProductDetail extends ProductListItem {
   description: string | null;
   minimumStock: number;
   reorderLevel: number;
-  compatibilities: CompatibilityEntry[];
 }
 
 export interface ProductInput {
@@ -199,13 +109,12 @@ export interface ProductInput {
   name: string;
   description?: string | null;
   brandId?: string | null;
+  costPrice: number;
   retailPrice: number;
   wholesalePrice: number;
   minimumStock?: number;
   reorderLevel?: number;
   status?: CatalogStatus;
-  identifiers?: IdentifierInput[];
-  compatibility?: CompatibilityInput[];
 }
 
 export interface ProductStatusInput {
@@ -247,7 +156,9 @@ export interface InventoryListItem {
 }
 
 export interface InventoryDetail extends InventoryListItem {
-  identifiers: Identifier[];
+  categoryId: string | null;
+  categoryName: string | null;
+  quantityReserved: number;
 }
 
 export interface InventoryTransaction {

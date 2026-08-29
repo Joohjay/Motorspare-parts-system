@@ -24,7 +24,6 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
     heading: 'Catalog',
     items: [
       { to: '/catalog/products', label: 'Products' },
-      { to: '/catalog/motorcycles', label: 'Motorcycles' },
       { to: '/catalog/brands', label: 'Brands' },
     ],
   },

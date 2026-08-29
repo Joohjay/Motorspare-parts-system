@@ -18,9 +18,6 @@ export const inventoryListQuery = z.object({
   categoryId: z.string().min(1).max(128).optional(),
   brandId: z.string().min(1).max(128).optional(),
   status: productStatus.optional(),
-  makeId: z.string().min(1).max(128).optional(),
-  modelId: z.string().min(1).max(128).optional(),
-  variantId: z.string().min(1).max(128).optional(),
   stockStatus: z.enum(['HEALTHY', 'LOW_STOCK', 'OUT_OF_STOCK']).optional(),
   ...sortSchema(
     ['name', 'sku', 'quantityOnHand', 'quantityReserved', 'available', 'weightedAverageCost', 'inventoryValue', 'updatedAt'],

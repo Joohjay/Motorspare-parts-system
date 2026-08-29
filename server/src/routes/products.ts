@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import {
   createProduct,
+  deleteProduct,
   getProduct,
   listProducts,
   updateProduct,
@@ -15,9 +16,10 @@ const router = Router();
 router.get('/', requireAuth, listProducts);
 router.get('/:id', requireAuth, getProduct);
 
-// Mutations: ADMIN only. Products are soft-deactivated, never deleted.
+// Mutations: ADMIN only. Products with history are soft-deactivated, never deleted.
 router.post('/', requireAdmin, createProduct);
 router.patch('/:id', requireAdmin, updateProduct);
 router.patch('/:id/status', requireAdmin, updateProductStatus);
+router.delete('/:id', requireAdmin, deleteProduct);
 
 export default router;

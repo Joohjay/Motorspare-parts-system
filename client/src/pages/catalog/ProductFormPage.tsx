@@ -14,32 +14,8 @@ import {
   errorMessage,
 } from '@/components/ui/FormControls';
 import { ApiClientError } from '@/lib/api';
-import {
-  brandsApi,
-  identifierTypes,
-  motorcyclesApi,
-  productsApi,
-} from '@/lib/catalogApi';
-import type {
-  Brand,
-  CatalogStatus,
-  IdentifierInput,
-  IdentifierType,
-  MotorcycleMake,
-  MotorcycleModel,
-  MotorcycleVariant,
-  ProductDetail,
-} from '@/types/api';
-
-interface CompatibilityRow {
-  variantId: string;
-  label: string;
-  notes: string;
-}
-
-function buildLabel(variant: MotorcycleVariant): string {
-  return `${variant.model.make.name} ${variant.model.name} ${variant.name}`.trim();
-}
+import { brandsApi, productsApi } from '@/lib/catalogApi';
+import type { Brand, CatalogStatus, ProductDetail } from '@/types/api';
 
 export function ProductFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,25 +26,14 @@ export function ProductFormPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [brandId, setBrandId] = useState('');
+  const [costPrice, setCostPrice] = useState('');
   const [retailPrice, setRetailPrice] = useState('');
   const [wholesalePrice, setWholesalePrice] = useState('');
   const [minimumStock, setMinimumStock] = useState('0');
   const [reorderLevel, setReorderLevel] = useState('0');
   const [status, setStatus] = useState<CatalogStatus>('ACTIVE');
 
-  const [identifiers, setIdentifiers] = useState<IdentifierInput[]>([
-    { type: 'PART_NUMBER', value: '' },
-  ]);
-  const [compatibilities, setCompatibilities] = useState<CompatibilityRow[]>([]);
-
   const [brands, setBrands] = useState<Brand[]>([]);
-  const [makes, setMakes] = useState<MotorcycleMake[]>([]);
-
-  const [makeId, setMakeId] = useState('');
-  const [modelId, setModelId] = useState('');
-  const [variantId, setVariantId] = useState('');
-  const [models, setModels] = useState<MotorcycleModel[]>([]);
-  const [variants, setVariants] = useState<MotorcycleVariant[]>([]);
 
   const [loading, setLoading] = useState(isEdit);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -81,7 +46,6 @@ export function ProductFormPage() {
     setLoadError(null);
     const tasks: Promise<unknown>[] = [
       brandsApi.list({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' }),
-      motorcyclesApi.listMakes({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' }),
     ];
     if (isEdit) {
       tasks.push(productsApi.get(id as string));
@@ -90,35 +54,19 @@ export function ProductFormPage() {
       .then((results) => {
         if (!active) return;
         const brandData = results[0] as { items: Brand[] };
-        const makeData = results[1] as { items: MotorcycleMake[] };
         setBrands(brandData.items);
-        setMakes(makeData.items);
         if (isEdit) {
-          const product = (results[2] as { product: ProductDetail }).product;
+          const product = (results[1] as { product: ProductDetail }).product;
           setSku(product.sku);
           setName(product.name);
           setDescription(product.description ?? '');
           setBrandId(product.brandId ?? '');
+          setCostPrice(String(Number(product.costPrice)));
           setRetailPrice(String(Number(product.retailPrice)));
           setWholesalePrice(String(Number(product.wholesalePrice)));
           setMinimumStock(String(product.minimumStock));
           setReorderLevel(String(product.reorderLevel));
           setStatus(product.status);
-          setIdentifiers(
-            product.identifiers.length > 0
-              ? product.identifiers.map((identifier) => ({
-                  type: identifier.type as IdentifierType,
-                  value: identifier.value,
-                }))
-              : [{ type: 'PART_NUMBER', value: '' }],
-          );
-          setCompatibilities(
-            product.compatibilities.map((entry) => ({
-              variantId: entry.variant.id,
-              label: `${entry.variant.model.make.name} ${entry.variant.model.name} ${entry.variant.name}`.trim(),
-              notes: entry.notes ?? '',
-            })),
-          );
         }
         setLoading(false);
       })
@@ -132,102 +80,21 @@ export function ProductFormPage() {
     };
   }, [isEdit, id]);
 
-  useEffect(() => {
-    if (!makeId) {
-      setModels([]);
-      setModelId('');
-      return;
-    }
-    let active = true;
-    motorcyclesApi
-      .listModels({ makeId, pageSize: 500, sortBy: 'name', sortOrder: 'asc' })
-      .then((data) => {
-        if (active) {
-          setModels(data.items);
-          setModelId('');
-          setVariants([]);
-          setVariantId('');
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setModels([]);
-          setModelId('');
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [makeId]);
-
-  useEffect(() => {
-    if (!modelId) {
-      setVariants([]);
-      setVariantId('');
-      return;
-    }
-    let active = true;
-    motorcyclesApi
-      .listVariants({ modelId, pageSize: 500, sortBy: 'name', sortOrder: 'asc' })
-      .then((data) => {
-        if (active) {
-          setVariants(data.items);
-          setVariantId('');
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setVariants([]);
-          setVariantId('');
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [modelId]);
-
-  function addIdentifierRow() {
-    setIdentifiers((rows) => [...rows, { type: 'PART_NUMBER', value: '' }]);
-  }
-
-  function updateIdentifier(index: number, patch: Partial<IdentifierInput>) {
-    setIdentifiers((rows) =>
-      rows.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-    );
-  }
-
-  function removeIdentifier(index: number) {
-    setIdentifiers((rows) => rows.filter((_, i) => i !== index));
-  }
-
-  function addCompatibilityRow() {
-    const variant = variants.find((v) => v.id === variantId);
-    if (!variant) return;
-    if (compatibilities.some((row) => row.variantId === variantId)) {
-      setError('That motorcycle variant is already in the compatibility list.');
-      return;
-    }
-    setCompatibilities((rows) => [...rows, { variantId, label: buildLabel(variant), notes: '' }]);
-    setVariantId('');
-  }
-
-  function updateCompatibilityNotes(index: number, notes: string) {
-    setCompatibilities((rows) => rows.map((row, i) => (i === index ? { ...row, notes } : row)));
-  }
-
-  function removeCompatibilityRow(index: number) {
-    setCompatibilities((rows) => rows.filter((_, i) => i !== index));
-  }
-
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
 
+    const cost = Number(costPrice);
     const retail = Number(retailPrice);
     const wholesale = Number(wholesalePrice);
     const minStock = Number(minimumStock);
     const reorder = Number(reorderLevel);
+    if (!Number.isFinite(cost) || cost < 0) {
+      setError('Cost price must be a number of at least 0.');
+      setSubmitting(false);
+      return;
+    }
     if (!Number.isFinite(retail) || retail < 0) {
       setError('Retail price must be a number of at least 0.');
       setSubmitting(false);
@@ -239,14 +106,6 @@ export function ProductFormPage() {
       return;
     }
 
-    const payloadIdentifiers = identifiers.filter(
-      (row) => row.type && row.value.trim().length > 0,
-    );
-    const payloadCompatibility = compatibilities.map((row) => ({
-      variantId: row.variantId,
-      notes: row.notes.trim() || null,
-    }));
-
     try {
       if (isEdit) {
         await productsApi.update(id as string, {
@@ -254,13 +113,12 @@ export function ProductFormPage() {
           name: name.trim(),
           description: description.trim() || null,
           brandId: brandId || null,
+          costPrice: cost,
           retailPrice: retail,
           wholesalePrice: wholesale,
           minimumStock: minStock,
           reorderLevel: reorder,
           status,
-          identifiers: payloadIdentifiers,
-          compatibility: payloadCompatibility,
         });
       } else {
         await productsApi.create({
@@ -268,12 +126,11 @@ export function ProductFormPage() {
           name: name.trim(),
           description: description.trim() || null,
           brandId: brandId || null,
+          costPrice: cost,
           retailPrice: retail,
           wholesalePrice: wholesale,
           minimumStock: minStock,
           reorderLevel: reorder,
-          identifiers: payloadIdentifiers,
-          compatibility: payloadCompatibility,
         });
       }
       navigate('/catalog/products');
@@ -291,6 +148,13 @@ export function ProductFormPage() {
   if (loading) return <LoadingState label="Loading product…" />;
   if (loadError) return <ErrorState message={loadError} />;
 
+  const cost = Number(costPrice);
+  const retail = Number(retailPrice);
+  const wholesale = Number(wholesalePrice);
+  const retailProfit = Number.isFinite(cost) && Number.isFinite(retail) ? retail - cost : null;
+  const wholesaleProfit =
+    Number.isFinite(cost) && Number.isFinite(wholesale) ? wholesale - cost : null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -299,7 +163,7 @@ export function ProductFormPage() {
             {isEdit ? 'Edit product' : 'New product'}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Core details, reference identifiers, and motorcycle compatibility.
+            Core details and pricing for {isEdit ? 'this' : 'the new'} product.
           </p>
         </div>
         <Link to="/catalog/products" className="text-sm text-slate-500 hover:text-slate-700">
@@ -356,28 +220,6 @@ export function ProductFormPage() {
                 ))}
               </SelectInput>
             </Field>
-            <Field label="Retail price (TZS)" htmlFor="product-retail" required>
-              <TextInput
-                id="product-retail"
-                type="number"
-                min={0}
-                step="0.01"
-                required
-                value={retailPrice}
-                onChange={(e) => setRetailPrice(e.target.value)}
-              />
-            </Field>
-            <Field label="Wholesale price (TZS)" htmlFor="product-wholesale" required>
-              <TextInput
-                id="product-wholesale"
-                type="number"
-                min={0}
-                step="0.01"
-                required
-                value={wholesalePrice}
-                onChange={(e) => setWholesalePrice(e.target.value)}
-              />
-            </Field>
             <Field label="Minimum stock" htmlFor="product-minstock">
               <TextInput
                 id="product-minstock"
@@ -414,154 +256,71 @@ export function ProductFormPage() {
         </Card>
 
         <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Reference identifiers
-            </h2>
-            <Button variant="secondary" onClick={addIdentifierRow}>
-              Add identifier
-            </Button>
-          </div>
-          <p className="mt-1 text-xs text-slate-400">
-            Alternate part, OEM, supplier, or barcode numbers used to find this product.
-          </p>
-          <div className="mt-4 space-y-3">
-            {identifiers.map((row, index) => (
-              <div key={index} className="flex items-start gap-3">
-                <div className="w-48">
-                  <label
-                    htmlFor={`identifier-type-${index}`}
-                    className="sr-only"
-                  >
-                    Type
-                  </label>
-                  <SelectInput
-                    id={`identifier-type-${index}`}
-                    value={row.type}
-                    onChange={(e) =>
-                      updateIdentifier(index, { type: e.target.value as IdentifierType })
-                    }
-                  >
-                    {identifierTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {type.replace(/_/g, ' ')}
-                      </option>
-                    ))}
-                  </SelectInput>
-                </div>
-                <div className="flex-1">
-                  <label htmlFor={`identifier-value-${index}`} className="sr-only">
-                    Value
-                  </label>
-                  <TextInput
-                    id={`identifier-value-${index}`}
-                    maxLength={128}
-                    placeholder="Identifier value"
-                    value={row.value}
-                    onChange={(e) => updateIdentifier(index, { value: e.target.value })}
-                  />
-                </div>
-                <Button
-                  variant="ghost"
-                  onClick={() => removeIdentifier(index)}
-                  disabled={identifiers.length === 1}
-                >
-                  Remove
-                </Button>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="p-6">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Motorcycle compatibility
+            Pricing
           </h2>
           <p className="mt-1 text-xs text-slate-400">
-            The motorcycle variants this product fits. Use the cascading selectors to add one.
+            Cost price is what you buy the product for; profit is the selling price minus cost.
           </p>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
-            <Field label="Make" htmlFor="compat-make">
-              <SelectInput
-                id="compat-make"
-                value={makeId}
-                onChange={(e) => setMakeId(e.target.value)}
-              >
-                <option value="">All makes…</option>
-                {makes.map((make) => (
-                  <option key={make.id} value={make.id}>
-                    {make.name}
-                  </option>
-                ))}
-              </SelectInput>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <Field label="Cost price (TZS)" htmlFor="product-cost" required>
+              <TextInput
+                id="product-cost"
+                type="number"
+                min={0}
+                step="0.01"
+                required
+                value={costPrice}
+                onChange={(e) => setCostPrice(e.target.value)}
+              />
             </Field>
-            <Field label="Model" htmlFor="compat-model">
-              <SelectInput
-                id="compat-model"
-                value={modelId}
-                onChange={(e) => setModelId(e.target.value)}
-                disabled={!makeId}
-              >
-                <option value="">All models…</option>
-                {models.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name}
-                  </option>
-                ))}
-              </SelectInput>
+            <Field label="Retail price (TZS)" htmlFor="product-retail" required>
+              <TextInput
+                id="product-retail"
+                type="number"
+                min={0}
+                step="0.01"
+                required
+                value={retailPrice}
+                onChange={(e) => setRetailPrice(e.target.value)}
+              />
             </Field>
-            <Field label="Variant" htmlFor="compat-variant">
-              <SelectInput
-                id="compat-variant"
-                value={variantId}
-                onChange={(e) => setVariantId(e.target.value)}
-                disabled={!modelId}
-              >
-                <option value="">All variants…</option>
-                {variants.map((variant) => (
-                  <option key={variant.id} value={variant.id}>
-                    {variant.name}
-                    {variant.yearFrom ? ` (${variant.yearFrom}–${variant.yearTo ?? 'now'})` : ''}
-                  </option>
-                ))}
-              </SelectInput>
+            <Field label="Wholesale price (TZS)" htmlFor="product-wholesale" required>
+              <TextInput
+                id="product-wholesale"
+                type="number"
+                min={0}
+                step="0.01"
+                required
+                value={wholesalePrice}
+                onChange={(e) => setWholesalePrice(e.target.value)}
+              />
             </Field>
-            <div className="flex items-end">
-              <Button onClick={addCompatibilityRow} disabled={!variantId}>
-                Add fitment
-              </Button>
-            </div>
           </div>
-
-          {compatibilities.length > 0 ? (
-            <ul className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
-              {compatibilities.map((row, index) => (
-                <li key={row.variantId} className="flex items-center gap-3 px-4 py-3">
-                  <span className="flex-1 text-sm font-medium text-slate-900">{row.label}</span>
-                  <div className="w-56">
-                    <label htmlFor={`compat-notes-${index}`} className="sr-only">
-                      Notes
-                    </label>
-                    <TextInput
-                      id={`compat-notes-${index}`}
-                      maxLength={500}
-                      placeholder="Notes (optional)"
-                      value={row.notes}
-                      onChange={(e) => updateCompatibilityNotes(index, e.target.value)}
-                    />
-                  </div>
-                  <Button variant="ghost" onClick={() => removeCompatibilityRow(index)}>
-                    Remove
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-4 text-sm text-slate-400">
-              No compatibility links yet.
-            </p>
-          )}
+          <div className="mt-4 flex flex-wrap gap-4 text-sm">
+            {retailProfit !== null && (
+              <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-slate-600">
+                Retail profit:{' '}
+                <strong
+                  className={retailProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}
+                >
+                  {(retailProfit >= 0 ? '' : '-') +
+                    `TZS ${Math.abs(retailProfit).toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+                </strong>
+              </span>
+            )}
+            {wholesaleProfit !== null && (
+              <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-slate-600">
+                Wholesale profit:{' '}
+                <strong
+                  className={wholesaleProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}
+                >
+                  {(wholesaleProfit >= 0 ? '' : '-') +
+                    `TZS ${Math.abs(wholesaleProfit).toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+                </strong>
+              </span>
+            )}
+          </div>
         </Card>
 
         <FormError message={error} />

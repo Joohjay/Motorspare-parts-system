@@ -13,7 +13,6 @@ const LoginPage = lazy(() => import('@/pages/LoginPage').then((m) => ({ default:
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
 const BrandsPage = lazy(() => import('@/pages/catalog/BrandsPage').then((m) => ({ default: m.BrandsPage })));
-const MotorcyclesPage = lazy(() => import('@/pages/catalog/MotorcyclesPage').then((m) => ({ default: m.MotorcyclesPage })));
 const ProductFormPage = lazy(() => import('@/pages/catalog/ProductFormPage').then((m) => ({ default: m.ProductFormPage })));
 const ProductsPage = lazy(() => import('@/pages/catalog/ProductsPage').then((m) => ({ default: m.ProductsPage })));
 const InventoryDetailPage = lazy(() => import('@/pages/inventory/InventoryDetailPage').then((m) => ({ default: m.InventoryDetailPage })));
@@ -58,7 +57,6 @@ export const router = createBrowserRouter([
           { path: 'inventory/:productId', element: <SuspenseWrapper><InventoryDetailPage /></SuspenseWrapper> },
           { path: 'catalog/products', element: <SuspenseWrapper><ProductsPage /></SuspenseWrapper> },
           { path: 'catalog/brands', element: <SuspenseWrapper><BrandsPage /></SuspenseWrapper> },
-          { path: 'catalog/motorcycles', element: <SuspenseWrapper><MotorcyclesPage /></SuspenseWrapper> },
           { path: 'pos', element: <SuspenseWrapper><PosPage /></SuspenseWrapper> },
           { path: 'sales', element: <SuspenseWrapper><SalesHistoryPage /></SuspenseWrapper> },
           { path: 'sales/:id', element: <SuspenseWrapper><SaleDetailPage /></SuspenseWrapper> },

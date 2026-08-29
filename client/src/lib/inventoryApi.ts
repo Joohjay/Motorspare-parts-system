@@ -16,9 +16,6 @@ export interface InventoryListQuery {
   categoryId?: string;
   brandId?: string;
   status?: 'ACTIVE' | 'INACTIVE';
-  makeId?: string;
-  modelId?: string;
-  variantId?: string;
   stockStatus?: StockStatus;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';

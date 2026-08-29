@@ -39,6 +39,7 @@ export function ProductsPage() {
 
   const [brands, setBrands] = useState<Brand[]>([]);
   const [target, setTarget] = useState<TargetAction>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProductListItem | null>(null);
   const [mutating, setMutating] = useState(false);
 
   useEffect(() => {
@@ -105,6 +106,24 @@ export function ProductsPage() {
     }
   }
 
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setMutating(true);
+    try {
+      await productsApi.remove(deleteTarget.id);
+      setDeleteTarget(null);
+      setReloadTick((t) => t + 1);
+    } catch (err) {
+      const message =
+        err instanceof ApiClientError
+          ? err.message
+          : 'Unable to delete the product. Please try again.';
+      setError(message);
+    } finally {
+      setMutating(false);
+    }
+  }
+
   function handleSearch(value: string) {
     setQ(value);
     setPage(1);
@@ -116,7 +135,7 @@ export function ProductsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Products</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Manage the spare parts catalog, identifiers, and motorcycle compatibility.
+            Manage the spare parts catalog and product pricing.
           </p>
         </div>
         {isAdmin && (
@@ -134,7 +153,7 @@ export function ProductsPage() {
             </label>
             <TextInput
               id="product-search"
-              placeholder="Name, SKU, identifier, brand…"
+              placeholder="Name, SKU, brand…"
               value={q}
               onChange={(e) => handleSearch(e.target.value)}
             />
@@ -194,9 +213,10 @@ export function ProductsPage() {
                   <th className="px-4 py-3 font-medium">SKU</th>
                   <th className="px-4 py-3 font-medium">Name</th>
                   <th className="px-4 py-3 font-medium">Brand</th>
+                  <th className="px-4 py-3 text-right font-medium">Cost</th>
                   <th className="px-4 py-3 text-right font-medium">Retail</th>
+                  <th className="px-4 py-3 text-right font-medium">Profit</th>
                   <th className="px-4 py-3 text-center font-medium">Status</th>
-                  <th className="px-4 py-3 text-center font-medium">Compat.</th>
                   <th className="px-4 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
@@ -214,27 +234,45 @@ export function ProductsPage() {
                     </td>
                     <td className="px-4 py-3 text-slate-600">{product.brand?.name ?? '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-slate-700">
+                      {formatPrice(product.costPrice)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">
                       {formatPrice(product.retailPrice)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {(() => {
+                        const profit = Number(product.retailPrice) - Number(product.costPrice);
+                        const formatted = `TZS ${Math.abs(profit).toLocaleString(undefined, {
+                          maximumFractionDigits: 2,
+                        })}`;
+                        return (
+                          <span className={profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                            {profit < 0 ? `-${formatted}` : formatted}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <StatusPill status={product.status} />
                     </td>
-                    <td className="px-4 py-3 text-center text-slate-600">
-                      {product.compatibilityCount}
-                    </td>
                     <td className="px-4 py-3 text-right">
                       {isAdmin ? (
-                        <Button
-                          variant="ghost"
-                          onClick={() =>
-                            setTarget({
-                              product,
-                              status: product.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
-                            })
-                          }
-                        >
-                          {product.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            onClick={() =>
+                              setTarget({
+                                product,
+                                status: product.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
+                              })
+                            }
+                          >
+                            {product.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                          </Button>
+                          <Button variant="ghost" onClick={() => setDeleteTarget(product)}>
+                            Delete
+                          </Button>
+                        </div>
                       ) : (
                         <span className="text-xs text-slate-400">Read only</span>
                       )}
@@ -258,6 +296,17 @@ export function ProductsPage() {
           busy={mutating}
           onConfirm={() => void confirmToggle()}
           onCancel={() => setTarget(null)}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete product"
+          message={`Delete "${deleteTarget.name}"? This permanently removes the product and cannot be undone. Products with sales or inventory history cannot be deleted; use Deactivate instead.`}
+          confirmLabel="Delete"
+          busy={mutating}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
     </div>

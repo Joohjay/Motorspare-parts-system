@@ -12,16 +12,9 @@ import {
 } from '@/components/ui/FormControls';
 import { PaginationControls } from '@/components/ui/PaginationControls';
 import { StockStatusPill } from '@/components/ui/StockStatusPill';
-import { brandsApi, motorcyclesApi } from '@/lib/catalogApi';
+import { brandsApi } from '@/lib/catalogApi';
 import { formatCurrency, formatQuantity, inventoryApi } from '@/lib/inventoryApi';
-import type {
-  Brand,
-  InventoryListItem,
-  MotorcycleMake,
-  MotorcycleModel,
-  MotorcycleVariant,
-  StockStatus,
-} from '@/types/api';
+import type { Brand, InventoryListItem, StockStatus } from '@/types/api';
 
 const PAGE_SIZE = 20;
 
@@ -86,9 +79,6 @@ export function InventoryPage() {
   const [q, setQ] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('');
   const [brandId, setBrandId] = useState('');
-  const [makeId, setMakeId] = useState('');
-  const [modelId, setModelId] = useState('');
-  const [variantId, setVariantId] = useState('');
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
@@ -100,9 +90,6 @@ export function InventoryPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [brands, setBrands] = useState<Brand[]>([]);
-  const [makes, setMakes] = useState<MotorcycleMake[]>([]);
-  const [models, setModels] = useState<MotorcycleModel[]>([]);
-  const [variants, setVariants] = useState<MotorcycleVariant[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -113,9 +100,6 @@ export function InventoryPage() {
         q: q || undefined,
         stockStatus: stockFilter || undefined,
         brandId: brandId || undefined,
-        makeId: makeId || undefined,
-        modelId: modelId || undefined,
-        variantId: variantId || undefined,
         sortBy: sortBy || undefined,
         sortOrder,
         page,
@@ -136,18 +120,15 @@ export function InventoryPage() {
     return () => {
       active = false;
     };
-  }, [q, stockFilter, brandId, makeId, modelId, variantId, sortBy, sortOrder, page]);
+  }, [q, stockFilter, brandId, sortBy, sortOrder, page]);
 
   useEffect(() => {
     let active = true;
-    void Promise.all([
-      brandsApi.list({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' }),
-      motorcyclesApi.listMakes({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' }),
-    ])
-      .then(([brandData, makeData]) => {
+    void brandsApi
+      .list({ pageSize: 500, sortBy: 'name', sortOrder: 'asc' })
+      .then((brandData) => {
         if (!active) return;
         setBrands(brandData.items);
-        setMakes(makeData.items);
       })
       .catch(() => {
         // Filter options are non-critical; the list still renders.
@@ -156,47 +137,6 @@ export function InventoryPage() {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    let active = true;
-    if (!makeId) {
-      setModels([]);
-      setVariants([]);
-      return;
-    }
-    motorcyclesApi
-      .listModels({ makeId, pageSize: 500, sortBy: 'name', sortOrder: 'asc' })
-      .then((data) => {
-        if (!active) return;
-        setModels(data.items);
-      })
-      .catch(() => {
-        setModels([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [makeId]);
-
-  useEffect(() => {
-    let active = true;
-    if (!modelId) {
-      setVariants([]);
-      return;
-    }
-    motorcyclesApi
-      .listVariants({ modelId, pageSize: 500, sortBy: 'name', sortOrder: 'asc' })
-      .then((data) => {
-        if (!active) return;
-        setVariants(data.items);
-      })
-      .catch(() => {
-        setVariants([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [modelId]);
 
   function handleSort(field: SortField) {
     if (sortBy === field) {
@@ -229,14 +169,14 @@ export function InventoryPage() {
       </div>
 
       <Card className="p-4">
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <div>
             <label htmlFor="inventory-search" className="block text-sm font-medium text-slate-700">
               Search
             </label>
             <TextInput
               id="inventory-search"
-              placeholder="Name, SKU, identifier, brand, category…"
+              placeholder="Name, SKU, brand, category…"
               value={q}
               onChange={(e) => {
                 setQ(e.target.value);
@@ -278,71 +218,6 @@ export function InventoryPage() {
               {brands.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
-                </option>
-              ))}
-            </SelectInput>
-          </div>
-          <div>
-            <label htmlFor="inventory-make" className="block text-sm font-medium text-slate-700">
-              Motorcycle make
-            </label>
-            <SelectInput
-              id="inventory-make"
-              value={makeId}
-              onChange={(e) => {
-                setMakeId(e.target.value);
-                setModelId('');
-                setVariantId('');
-                resetPage();
-              }}
-            >
-              <option value="">All makes</option>
-              {makes.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </SelectInput>
-          </div>
-          <div>
-            <label htmlFor="inventory-model" className="block text-sm font-medium text-slate-700">
-              Model
-            </label>
-            <SelectInput
-              id="inventory-model"
-              value={modelId}
-              disabled={!makeId}
-              onChange={(e) => {
-                setModelId(e.target.value);
-                setVariantId('');
-                resetPage();
-              }}
-            >
-              <option value="">All models</option>
-              {models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </SelectInput>
-          </div>
-          <div>
-            <label htmlFor="inventory-variant" className="block text-sm font-medium text-slate-700">
-              Variant
-            </label>
-            <SelectInput
-              id="inventory-variant"
-              value={variantId}
-              disabled={!modelId}
-              onChange={(e) => {
-                setVariantId(e.target.value);
-                resetPage();
-              }}
-            >
-              <option value="">All variants</option>
-              {variants.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
                 </option>
               ))}
             </SelectInput>

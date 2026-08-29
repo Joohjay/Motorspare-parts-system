@@ -702,9 +702,6 @@ function productSearchWhere(query: {
   categoryId?: string;
   brandId?: string;
   status?: string;
-  makeId?: string;
-  modelId?: string;
-  variantId?: string;
 }): Prisma.ProductWhereInput {
   const and: Prisma.ProductWhereInput[] = [];
   if (query.status) and.push({ status: query.status as 'ACTIVE' | 'INACTIVE' });
@@ -715,15 +712,11 @@ function productSearchWhere(query: {
       OR: [
         { name: { contains: query.q, mode: 'insensitive' } },
         { sku: { contains: query.q, mode: 'insensitive' } },
-        { identifiers: { some: { value: { contains: query.q, mode: 'insensitive' } } } },
         { brand: { is: { name: { contains: query.q, mode: 'insensitive' } } } },
         { category: { is: { name: { contains: query.q, mode: 'insensitive' } } } },
       ],
     });
   }
-  if (query.variantId) and.push({ compatibilities: { some: { variantId: query.variantId } } });
-  if (query.modelId) and.push({ compatibilities: { some: { variant: { modelId: query.modelId } } } });
-  if (query.makeId) and.push({ compatibilities: { some: { variant: { model: { makeId: query.makeId } } } } });
   return and.length > 0 ? { AND: and } : {};
 }
 
@@ -759,9 +752,6 @@ export async function listInventory(query: {
   categoryId?: string;
   brandId?: string;
   status?: string;
-  makeId?: string;
-  modelId?: string;
-  variantId?: string;
   stockStatus?: StockStatus;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
@@ -826,7 +816,6 @@ export async function getInventory(productId: string) {
       inventory: true,
       brand: { select: { id: true, name: true } },
       category: { select: { id: true, name: true } },
-      identifiers: true,
     },
   });
   if (!product) throw ApiError.notFound('Product not found');
@@ -845,7 +834,6 @@ export async function getInventory(productId: string) {
     categoryName: product.category?.name ?? null,
     brandId: product.brandId,
     brandName: product.brand?.name ?? null,
-    identifiers: product.identifiers,
     quantityOnHand: onHand,
     quantityReserved: reserved,
     available,

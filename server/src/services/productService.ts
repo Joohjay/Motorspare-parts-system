@@ -8,22 +8,6 @@ import { orderBy, paginate, type PaginationResult } from '../utils/pagination.js
 import { AUDIT } from '../constants/auditActions.js';
 
 export type Status = 'ACTIVE' | 'INACTIVE';
-export type IdentifierTypeValue =
-  | 'PART_NUMBER'
-  | 'OEM_NUMBER'
-  | 'ALTERNATIVE_NUMBER'
-  | 'SUPPLIER_NUMBER'
-  | 'OTHER';
-
-export interface IdentifierInput {
-  type: IdentifierTypeValue;
-  value: string;
-}
-
-export interface CompatibilityInput {
-  variantId: string;
-  notes?: string | null;
-}
 
 // ---------------------------------------------------------------------------
 // DTOs
@@ -34,14 +18,13 @@ export interface ProductListItem {
   sku: string;
   name: string;
   status: Status;
-  categoryId: string;
+  categoryId: string | null;
   brandId: string | null;
+  costPrice: Prisma.Decimal;
   retailPrice: Prisma.Decimal;
   wholesalePrice: Prisma.Decimal;
   category: { id: string; name: string; slug: string; status: string } | null;
   brand: { id: string; name: string; status: string } | null;
-  identifiers: { id: string; type: string; value: string }[];
-  compatibilityCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -50,47 +33,19 @@ export interface ProductDetail extends ProductListItem {
   description: string | null;
   minimumStock: number;
   reorderLevel: number;
-  compatibilities: {
-    id: string;
-    notes: string | null;
-    variant: {
-      id: string;
-      name: string;
-      yearFrom: number | null;
-      yearTo: number | null;
-      model: { id: string; name: string; make: { id: string; name: string } };
-    };
-  }[];
 }
 
 const listInclude = {
   category: { select: { id: true, name: true, slug: true, status: true } },
   brand: { select: { id: true, name: true, status: true } },
-  identifiers: { select: { id: true, type: true, value: true } },
 } satisfies Prisma.ProductInclude;
 
 const detailInclude = {
   category: { select: { id: true, name: true, slug: true, status: true } },
   brand: { select: { id: true, name: true, status: true } },
-  identifiers: { select: { id: true, type: true, value: true } },
-  compatibilities: {
-    include: {
-      variant: {
-        include: {
-          model: {
-            include: { make: { select: { id: true, name: true } } },
-          },
-        },
-      },
-    },
-  },
 } satisfies Prisma.ProductInclude;
 
-function toListItem(
-  product: Prisma.ProductGetPayload<{ include: typeof listInclude }> & {
-    _count?: { compatibilities: number };
-  },
-): ProductListItem {
+function toListItem(product: Prisma.ProductGetPayload<{ include: typeof listInclude }>): ProductListItem {
   return {
     id: product.id,
     sku: product.sku,
@@ -98,12 +53,11 @@ function toListItem(
     status: product.status,
     categoryId: product.categoryId,
     brandId: product.brandId,
+    costPrice: product.costPrice,
     retailPrice: product.retailPrice,
     wholesalePrice: product.wholesalePrice,
     category: product.category,
     brand: product.brand,
-    identifiers: product.identifiers,
-    compatibilityCount: product._count?.compatibilities ?? 0,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   };
@@ -115,7 +69,6 @@ function toDetail(product: Prisma.ProductGetPayload<{ include: typeof detailIncl
     description: product.description,
     minimumStock: product.minimumStock,
     reorderLevel: product.reorderLevel,
-    compatibilities: product.compatibilities,
   };
 }
 
@@ -134,79 +87,10 @@ async function resolveBrand(brandId: string | null | undefined): Promise<void> {
   if (!brand) throw ApiError.badRequest('Brand does not exist');
 }
 
-async function resolveVariants(entries: CompatibilityInput[]): Promise<void> {
-  for (const entry of entries) {
-    const variant = await prisma.motorcycleVariant.findUnique({ where: { id: entry.variantId } });
-    if (!variant) {
-      throw ApiError.badRequest(`Compatibility variant ${entry.variantId} does not exist`);
-    }
-  }
-}
-
 async function assertSkuAvailable(sku: string, excludeProductId?: string): Promise<void> {
   const existing = await prisma.product.findUnique({ where: { sku } });
   if (existing && existing.id !== excludeProductId) {
     throw new ApiError(409, 'DUPLICATE_SKU', `SKU "${sku}" is already in use`);
-  }
-}
-
-async function assertIdentifiersAvailable(
-  entries: IdentifierInput[],
-  excludeProductId?: string,
-): Promise<void> {
-  const seen = new Set<string>();
-  for (const entry of entries) {
-    const key = `${entry.type}:${entry.value}`;
-    if (seen.has(key)) {
-      throw new ApiError(
-        409,
-        'DUPLICATE_IDENTIFIER',
-        `Identifier "${entry.value}" was provided more than once`,
-      );
-    }
-    seen.add(key);
-  }
-  const existing = await prisma.productIdentifier.findMany({
-    where: {
-      OR: entries.map((entry) => ({ type: entry.type, value: entry.value })),
-    },
-    select: { productId: true, type: true, value: true },
-  });
-  const clash = existing.find((identifier) => identifier.productId !== excludeProductId);
-  if (clash) {
-    throw new ApiError(
-      409,
-      'DUPLICATE_IDENTIFIER',
-      `Identifier "${clash.value}" is already used by another product`,
-    );
-  }
-}
-
-async function assertCompatibilityAvailable(
-  entries: CompatibilityInput[],
-  productId: string,
-): Promise<void> {
-  const seen = new Set<string>();
-  for (const entry of entries) {
-    if (seen.has(entry.variantId)) {
-      throw new ApiError(
-        409,
-        'DUPLICATE_COMPATIBILITY',
-        'A product cannot be linked to the same motorcycle twice',
-      );
-    }
-    seen.add(entry.variantId);
-  }
-  const existing = await prisma.productCompatibility.findMany({
-    where: { productId, variantId: { in: entries.map((entry) => entry.variantId) } },
-    select: { variantId: true },
-  });
-  if (existing.length > 0) {
-    throw new ApiError(
-      409,
-      'DUPLICATE_COMPATIBILITY',
-      'This product is already linked to one of those motorcycles',
-    );
   }
 }
 
@@ -217,6 +101,7 @@ async function assertCompatibilityAvailable(
 const SORT_FIELDS: Record<string, string> = {
   name: 'name',
   sku: 'sku',
+  costPrice: 'costPrice',
   retailPrice: 'retailPrice',
   wholesalePrice: 'wholesalePrice',
   createdAt: 'createdAt',
@@ -228,9 +113,6 @@ export async function listProducts(query: {
   categoryId?: string;
   brandId?: string;
   status?: Status;
-  makeId?: string;
-  modelId?: string;
-  variantId?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   page?: number;
@@ -247,17 +129,11 @@ export async function listProducts(query: {
       OR: [
         { name: { contains: query.q, mode: 'insensitive' } },
         { sku: { contains: query.q, mode: 'insensitive' } },
-        { identifiers: { some: { value: { contains: query.q, mode: 'insensitive' } } } },
         { brand: { is: { name: { contains: query.q, mode: 'insensitive' } } } },
         { category: { is: { name: { contains: query.q, mode: 'insensitive' } } } },
       ],
     });
   }
-
-  // Compatibility filters: products compatible with a specific motorcycle.
-  if (query.variantId) and.push({ compatibilities: { some: { variantId: query.variantId } } });
-  if (query.modelId) and.push({ compatibilities: { some: { variant: { modelId: query.modelId } } } });
-  if (query.makeId) and.push({ compatibilities: { some: { variant: { model: { makeId: query.makeId } } } } });
 
   const where: Prisma.ProductWhereInput = and.length > 0 ? { AND: and } : {};
 
@@ -295,26 +171,18 @@ export async function createProduct(
     description?: string | null;
     categoryId: string;
     brandId?: string | null;
+    costPrice: number;
     retailPrice: number;
     wholesalePrice: number;
     minimumStock: number;
     reorderLevel: number;
     status?: Status;
-    identifiers?: IdentifierInput[];
-    compatibility?: CompatibilityInput[];
   },
   ctx: { request: Request; actor: { id: string } },
 ): Promise<ProductDetail> {
   await resolveCategory(input.categoryId);
   await resolveBrand(input.brandId);
   await assertSkuAvailable(input.sku);
-  const identifiers = input.identifiers ?? [];
-  const compatibility = input.compatibility ?? [];
-  if (identifiers.length > 0) await assertIdentifiersAvailable(identifiers);
-  if (compatibility.length > 0) {
-    await resolveVariants(compatibility);
-    await assertCompatibilityAvailable(compatibility, '__new__');
-  }
 
   const product = await prisma.product.create({
     data: {
@@ -323,15 +191,12 @@ export async function createProduct(
       description: input.description ?? null,
       categoryId: input.categoryId,
       brandId: input.brandId ?? null,
+      costPrice: input.costPrice,
       retailPrice: input.retailPrice,
       wholesalePrice: input.wholesalePrice,
       minimumStock: input.minimumStock,
       reorderLevel: input.reorderLevel,
       status: input.status ?? 'ACTIVE',
-      identifiers: { create: identifiers.map((identifier) => ({ type: identifier.type, value: identifier.value })) },
-      compatibilities: {
-        create: compatibility.map((entry) => ({ variantId: entry.variantId, notes: entry.notes ?? null })),
-      },
     },
     include: detailInclude,
   });
@@ -347,8 +212,7 @@ export async function createProduct(
       name: product.name,
       categoryId: product.categoryId,
       brandId: product.brandId,
-      identifiers: identifiers.map((identifier) => ({ type: identifier.type, value: identifier.value })),
-      compatibility: compatibility.map((entry) => entry.variantId),
+      costPrice: product.costPrice,
     },
   });
 
@@ -363,13 +227,12 @@ export async function updateProduct(
     description?: string | null;
     categoryId?: string;
     brandId?: string | null;
+    costPrice?: number;
     retailPrice?: number;
     wholesalePrice?: number;
     minimumStock?: number;
     reorderLevel?: number;
     status?: Status;
-    identifiers?: IdentifierInput[];
-    compatibility?: CompatibilityInput[];
   },
   ctx: { request: Request; actor: { id: string } },
 ): Promise<ProductDetail> {
@@ -386,54 +249,12 @@ export async function updateProduct(
   if (input.description !== undefined) data.description = input.description ?? null;
   if (input.categoryId !== undefined) data.categoryId = input.categoryId;
   if (input.brandId !== undefined) data.brandId = input.brandId ?? null;
+  if (input.costPrice !== undefined) data.costPrice = input.costPrice;
   if (input.retailPrice !== undefined) data.retailPrice = input.retailPrice;
   if (input.wholesalePrice !== undefined) data.wholesalePrice = input.wholesalePrice;
   if (input.minimumStock !== undefined) data.minimumStock = input.minimumStock;
   if (input.reorderLevel !== undefined) data.reorderLevel = input.reorderLevel;
   if (input.status !== undefined) data.status = input.status;
-
-  // Identifiers: full replace when the array is provided. Compute the diff for
-  // granular audit events.
-  let identifierAudit: { added: IdentifierInput[]; removed: { type: string; value: string }[] } | null = null;
-  if (input.identifiers !== undefined) {
-    if (input.identifiers.length > 0) {
-      await assertIdentifiersAvailable(input.identifiers, id);
-    }
-    const current = await prisma.productIdentifier.findMany({
-      where: { productId: id },
-      select: { id: true, type: true, value: true },
-    });
-    const requestedKeys = new Set(input.identifiers.map((identifier) => `${identifier.type}:${identifier.value}`));
-    const currentKeys = new Set(current.map((identifier) => `${identifier.type}:${identifier.value}`));
-    const added = input.identifiers.filter((identifier) => !currentKeys.has(`${identifier.type}:${identifier.value}`));
-    const removed = current.filter((identifier) => !requestedKeys.has(`${identifier.type}:${identifier.value}`));
-    identifierAudit = { added, removed };
-    data.identifiers = {
-      deleteMany: {},
-      create: input.identifiers.map((identifier) => ({ type: identifier.type, value: identifier.value })),
-    };
-  }
-
-  // Compatibility: full replace when the array is provided.
-  let compatibilityAudit: { added: CompatibilityInput[]; removed: { id: string; variantId: string }[] } | null = null;
-  if (input.compatibility !== undefined) {
-    if (input.compatibility.length > 0) {
-      await resolveVariants(input.compatibility);
-      await assertCompatibilityAvailable(input.compatibility, id);
-    }
-    const current = await prisma.productCompatibility.findMany({
-      where: { productId: id },
-      select: { id: true, variantId: true },
-    });
-    const requestedVariantIds = new Set(input.compatibility.map((entry) => entry.variantId));
-    const added = input.compatibility.filter((entry) => !current.some((c) => c.variantId === entry.variantId));
-    const removed = current.filter((c) => !requestedVariantIds.has(c.variantId));
-    compatibilityAudit = { added, removed };
-    data.compatibilities = {
-      deleteMany: {},
-      create: input.compatibility.map((entry) => ({ variantId: entry.variantId, notes: entry.notes ?? null })),
-    };
-  }
 
   const product = await prisma.product.update({ where: { id }, data, include: detailInclude });
 
@@ -448,55 +269,20 @@ export async function updateProduct(
       name: existing.name,
       categoryId: existing.categoryId,
       brandId: existing.brandId,
+      costPrice: existing.costPrice,
+      retailPrice: existing.retailPrice,
+      wholesalePrice: existing.wholesalePrice,
     },
     afterState: {
       sku: product.sku,
       name: product.name,
       categoryId: product.categoryId,
       brandId: product.brandId,
+      costPrice: product.costPrice,
+      retailPrice: product.retailPrice,
+      wholesalePrice: product.wholesalePrice,
     },
   });
-
-  for (const identifier of identifierAudit?.added ?? []) {
-    await recordAudit({
-      request: ctx.request,
-      userId: ctx.actor.id,
-      action: AUDIT.IDENTIFIER_ADDED,
-      entityType: 'productIdentifier',
-      entityId: id,
-      afterState: { type: identifier.type, value: identifier.value },
-    });
-  }
-  for (const identifier of identifierAudit?.removed ?? []) {
-    await recordAudit({
-      request: ctx.request,
-      userId: ctx.actor.id,
-      action: AUDIT.IDENTIFIER_REMOVED,
-      entityType: 'productIdentifier',
-      entityId: id,
-      afterState: { type: identifier.type, value: identifier.value },
-    });
-  }
-  for (const entry of compatibilityAudit?.added ?? []) {
-    await recordAudit({
-      request: ctx.request,
-      userId: ctx.actor.id,
-      action: AUDIT.COMPATIBILITY_ADDED,
-      entityType: 'productCompatibility',
-      entityId: id,
-      afterState: { variantId: entry.variantId },
-    });
-  }
-  for (const entry of compatibilityAudit?.removed ?? []) {
-    await recordAudit({
-      request: ctx.request,
-      userId: ctx.actor.id,
-      action: AUDIT.COMPATIBILITY_REMOVED,
-      entityType: 'productCompatibility',
-      entityId: id,
-      afterState: { variantId: entry.variantId },
-    });
-  }
 
   return toDetail(product);
 }
@@ -525,4 +311,55 @@ export async function setProductStatus(
   });
 
   return toDetail(product);
+}
+
+export async function deleteProduct(
+  id: string,
+  ctx: { request: Request; actor: { id: string } },
+): Promise<void> {
+  const existing = await prisma.product.findUnique({ where: { id } });
+  if (!existing) throw ApiError.notFound('Product not found');
+
+  const [saleItems, saleReturnItems, inventoryTransactions, reservations, supplierProducts, purchaseRefs] =
+    await Promise.all([
+      prisma.saleItem.count({ where: { productId: id } }),
+      prisma.saleReturnItem.count({ where: { productId: id } }),
+      prisma.inventoryTransaction.count({ where: { productId: id } }),
+      prisma.stockReservation.count({ where: { productId: id } }),
+      prisma.supplierProduct.count({ where: { productId: id } }),
+      Promise.all([
+        prisma.purchaseOrderItem.count({ where: { productId: id } }),
+        prisma.purchaseItem.count({ where: { productId: id } }),
+        prisma.purchaseReturnItem.count({ where: { productId: id } }),
+      ]).then((sums) => sums.reduce((a, b) => a + b, 0)),
+    ]);
+
+  if (saleItems + saleReturnItems + inventoryTransactions + reservations + supplierProducts + purchaseRefs > 0) {
+    throw new ApiError(
+      409,
+      'PRODUCT_IN_USE',
+      'This product has sales or inventory history and cannot be deleted. Deactivate it instead.',
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.productIdentifier.deleteMany({ where: { productId: id } }),
+    prisma.productCompatibility.deleteMany({ where: { productId: id } }),
+    prisma.inventory.deleteMany({ where: { productId: id } }),
+    prisma.product.delete({ where: { id } }),
+  ]);
+
+  await recordAudit({
+    request: ctx.request,
+    userId: ctx.actor.id,
+    action: AUDIT.PRODUCT_DELETED,
+    entityType: 'product',
+    entityId: id,
+    beforeState: {
+      sku: existing.sku,
+      name: existing.name,
+      categoryId: existing.categoryId,
+      brandId: existing.brandId,
+    },
+  });
 }

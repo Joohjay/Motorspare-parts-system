@@ -389,6 +389,7 @@ model Product {
   category       Category?     @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   brandId        String? // branded or unbranded
   brand          Brand?        @relation(fields: [brandId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  costPrice      Decimal       @default(0) @db.Decimal(12, 2) // owner's buying price
   retailPrice    Decimal       @default(0) @db.Decimal(12, 2)
   wholesalePrice Decimal       @default(0) @db.Decimal(12, 2)
   minimumStock   Int           @default(0)

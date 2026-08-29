@@ -1,5 +1,6 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 
+import { useAuth } from '@/auth/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -7,7 +8,12 @@ import { appConfig } from '@/config/env';
 import { useHealth } from '@/hooks/useHealth';
 
 export function HomePage() {
+  const { status } = useAuth();
   const { data, loading, error } = useHealth();
+
+  if (status === 'authenticated') {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">

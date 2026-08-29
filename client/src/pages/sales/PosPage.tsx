@@ -468,14 +468,27 @@ export function PosPage(): ReactElement {
                       </option>
                     ))}
                   </SelectInput>
-                  <TextInput
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    placeholder="Amount"
-                    value={row.amount}
-                    onChange={(e) => updatePayment(index, { amount: e.target.value })}
-                  />
+                  <div className="flex gap-2">
+                    <TextInput
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      placeholder="Amount"
+                      value={row.amount}
+                      onChange={(e) => updatePayment(index, { amount: e.target.value })}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="shrink-0 px-2.5"
+                      disabled={remaining <= 0}
+                      title={remaining <= 0 ? 'Nothing left to pay' : 'Pay the full remaining amount'}
+                      onClick={() => updatePayment(index, { amount: money(remaining) })}
+                    >
+                      Exact
+                    </Button>
+                  </div>
                 </div>
                 {['MPESA', 'BANK', 'CHEQUE'].includes(row.paymentMethod) && (
                   <TextInput

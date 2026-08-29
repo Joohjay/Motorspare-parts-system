@@ -64,6 +64,7 @@ let variants: Rec[] = [];
 let products: Rec[] = [];
 let identifiers: Rec[] = [];
 let compatibilities: Rec[] = [];
+let saleItemCount = 0;
 const auditRecords: Array<Record<string, unknown>> = [];
 
 // ---------------------------------------------------------------------------
@@ -510,6 +511,7 @@ const db = {
         description: data.description ?? null,
         categoryId: data.categoryId,
         brandId: data.brandId ?? null,
+        costPrice: data.costPrice ?? 0,
         retailPrice: data.retailPrice ?? 0,
         wholesalePrice: data.wholesalePrice ?? 0,
         minimumStock: data.minimumStock ?? 0,
@@ -542,6 +544,7 @@ const db = {
         description: data.description !== undefined ? data.description : row.description,
         categoryId: data.categoryId ?? row.categoryId,
         brandId: data.brandId !== undefined ? data.brandId : row.brandId,
+        costPrice: data.costPrice ?? row.costPrice,
         retailPrice: data.retailPrice ?? row.retailPrice,
         wholesalePrice: data.wholesalePrice ?? row.wholesalePrice,
         minimumStock: data.minimumStock ?? row.minimumStock,
@@ -566,14 +569,22 @@ const db = {
       Object.assign(row, merged);
       return Promise.resolve(attachIncludes(merged, args?.include));
     }),
+    delete: mock.fn((args: { where: { id: string } }) => {
+      const idx = products.findIndex((r) => r.id === args.where.id);
+      if (idx < 0) return Promise.resolve(null);
+      const [removed] = products.splice(idx, 1);
+      return Promise.resolve(removed);
+    }),
   },
   productIdentifier: {
     findMany: makeFindMany(() => identifiers),
+    deleteMany: mock.fn(() => Promise.resolve({ count: 0 })),
   },
   productCompatibility: {
     findUnique: findById(() => compatibilities),
     findMany: makeFindMany(() => compatibilities),
     count: makeCount(() => compatibilities),
+    deleteMany: mock.fn(() => Promise.resolve({ count: 0 })),
     create: mock.fn((args: { data: Rec; include?: Rec }) => {
       const rec = baseRec('compat', {
         productId: args.data.productId,
@@ -590,6 +601,15 @@ const db = {
       return Promise.resolve(removed);
     }),
   },
+  saleItem: { count: mock.fn(() => Promise.resolve(saleItemCount)) },
+  saleReturnItem: { count: mock.fn(() => Promise.resolve(0)) },
+  inventoryTransaction: { count: mock.fn(() => Promise.resolve(0)) },
+  stockReservation: { count: mock.fn(() => Promise.resolve(0)) },
+  supplierProduct: { count: mock.fn(() => Promise.resolve(0)) },
+  purchaseOrderItem: { count: mock.fn(() => Promise.resolve(0)) },
+  purchaseItem: { count: mock.fn(() => Promise.resolve(0)) },
+  purchaseReturnItem: { count: mock.fn(() => Promise.resolve(0)) },
+  inventory: { deleteMany: mock.fn(() => Promise.resolve({ count: 0 })) },
   auditLog: {
     create: mock.fn((args: { data: Record<string, unknown> }) => {
       auditRecords.push(args.data);
@@ -768,6 +788,7 @@ function seedCatalog(): void {
       description: 'Front brake pad set',
       categoryId: categories[2]!.id,
       brandId: brands[0]!.id,
+      costPrice: 1000,
       retailPrice: 1500,
       wholesalePrice: 1200,
       minimumStock: 10,
@@ -780,6 +801,7 @@ function seedCatalog(): void {
       description: null,
       categoryId: categories[0]!.id,
       brandId: null,
+      costPrice: 500,
       retailPrice: 800,
       wholesalePrice: 600,
       minimumStock: 0,
@@ -792,6 +814,7 @@ function seedCatalog(): void {
       description: null,
       categoryId: categories[1]!.id,
       brandId: brands[1]!.id,
+      costPrice: 1800,
       retailPrice: 2500,
       wholesalePrice: 2000,
       minimumStock: 4,
@@ -838,6 +861,7 @@ function resetFixtures(): void {
     [ASSISTANT_ID]: makeUser(ASSISTANT_ID, 'ASSISTANT'),
   };
   auditRecords.length = 0;
+  saleItemCount = 0;
   seedCatalog();
 }
 
@@ -902,123 +926,8 @@ describe('catalog API', () => {
     });
   });
 
-  describe('motorcycle catalog', () => {
-    test('make, model and variant can be created', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const make = await mutate(port, jar, 'POST', '/api/motorcycles/makes', { name: 'Yamaha' });
-        assert.equal(make.status, 201);
-        const makeId = (make.body.make as Rec).id as string;
-
-        const model = await mutate(port, jar, 'POST', '/api/motorcycles/models', { makeId, name: 'YB' });
-        assert.equal(model.status, 201);
-        const modelId = (model.body.model as Rec).id as string;
-
-        const variant = await mutate(port, jar, 'POST', '/api/motorcycles/variants', {
-          modelId,
-          name: '125',
-          yearFrom: 2010,
-          yearTo: 2015,
-        });
-        assert.equal(variant.status, 201);
-        assert.equal((variant.body.variant as Rec).yearFrom, 2010);
-        assert.ok(auditRecords.some((a) => a.action === 'MOTORCYCLE_MAKE_CREATED'));
-        assert.ok(auditRecords.some((a) => a.action === 'MOTORCYCLE_MODEL_CREATED'));
-        assert.ok(auditRecords.some((a) => a.action === 'MOTORCYCLE_VARIANT_CREATED'));
-      } finally {
-        await close();
-      }
-    });
-
-    test('duplicate make is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'POST', '/api/motorcycles/makes', { name: 'Bajaj' });
-        assert.equal(res.status, 409);
-        assert.equal((res.body.error as Rec).code, 'DUPLICATE_MAKE');
-      } finally {
-        await close();
-      }
-    });
-
-    test('duplicate model within the same make is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'POST', '/api/motorcycles/models', {
-          makeId: makes[0]!.id,
-          name: 'Boxer',
-        });
-        assert.equal(res.status, 409);
-        assert.equal((res.body.error as Rec).code, 'DUPLICATE_MODEL');
-      } finally {
-        await close();
-      }
-    });
-
-    test('invalid year range is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'POST', '/api/motorcycles/variants', {
-          modelId: models[0]!.id,
-          name: 'X',
-          yearFrom: 2020,
-          yearTo: 2010,
-        });
-        assert.equal(res.status, 400);
-      } finally {
-        await close();
-      }
-    });
-
-    test('deactivating a variant used by compatibility is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'PATCH', `/api/motorcycles/variants/${variants[1]!.id}/status`, {
-          status: 'INACTIVE',
-        });
-        assert.equal(res.status, 400);
-        assert.equal((res.body.error as Rec).code, 'MOTORCYCLE_IN_USE');
-      } finally {
-        await close();
-      }
-    });
-
-    test('variant search by make/model free text (compatibility search)', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = assistantJar();
-        const res = await request(port, jar, 'GET', '/api/motorcycles/variants?make=Bajaj&model=Boxer&variant=15');
-        assert.equal(res.status, 200);
-        const items = res.body.items as Rec[];
-        assert.equal(items.length, 1);
-        assert.equal((items[0] as Rec).name, '150');
-        assert.equal(((items[0] as Rec).model as Rec).name, 'Boxer');
-      } finally {
-        await close();
-      }
-    });
-
-    test('variant list filters by makeId (cascading selection)', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = assistantJar();
-        const res = await request(port, jar, 'GET', `/api/motorcycles/variants?makeId=${makes[0]!.id}`);
-        assert.equal((res.body.items as Rec[]).length, 3);
-        const modelsRes = await request(port, jar, 'GET', `/api/motorcycles/models?makeId=${makes[0]!.id}`);
-        assert.equal((modelsRes.body.items as Rec[]).length, 2);
-      } finally {
-        await close();
-      }
-    });
-  });
-
   describe('products', () => {
-    test('ADMIN can create a product with identifiers and compatibility', async () => {
+    test('ADMIN can create a product with pricing', async () => {
       const { port, close } = await startServer();
       try {
         const jar = adminJar();
@@ -1028,18 +937,18 @@ describe('catalog API', () => {
           description: 'OEM replacement',
           categoryId: categories[0]!.id,
           brandId: null,
+          costPrice: 600,
           retailPrice: 900,
           wholesalePrice: 700,
           minimumStock: 5,
           reorderLevel: 2,
-          identifiers: [{ type: 'PART_NUMBER', value: 'CC-100' }],
-          compatibility: [{ variantId: variants[0]!.id }],
         });
         assert.equal(res.status, 201);
         const product = res.body.product as Rec;
         assert.equal(product.sku, 'NEW-SKU-1');
-        assert.equal((product.identifiers as Rec[]).length, 1);
-        assert.equal((product.compatibilities as Rec[]).length, 1);
+        assert.equal(product.costPrice, 600);
+        assert.equal(product.retailPrice, 900);
+        assert.equal(product.wholesalePrice, 700);
         assert.equal(product.brandId, null, 'unbranded product');
         assert.ok(auditRecords.some((a) => a.action === 'PRODUCT_CREATED'));
       } finally {
@@ -1055,107 +964,12 @@ describe('catalog API', () => {
           sku: 'BP-BOX-150',
           name: 'Duplicate',
           categoryId: categories[0]!.id,
+          costPrice: 1,
           retailPrice: 1,
           wholesalePrice: 1,
         });
         assert.equal(res.status, 409);
         assert.equal((res.body.error as Rec).code, 'DUPLICATE_SKU');
-      } finally {
-        await close();
-      }
-    });
-
-    test('duplicate identifier across products is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'POST', '/api/products', {
-          sku: 'NEW-SKU-2',
-          name: 'Another',
-          categoryId: categories[0]!.id,
-          retailPrice: 1,
-          wholesalePrice: 1,
-          identifiers: [{ type: 'OEM_NUMBER', value: 'BJP-12345' }],
-        });
-        assert.equal(res.status, 409);
-        assert.equal((res.body.error as Rec).code, 'DUPLICATE_IDENTIFIER');
-      } finally {
-        await close();
-      }
-    });
-
-    test('duplicate identifier within one request is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'POST', '/api/products', {
-          sku: 'NEW-SKU-3',
-          name: 'Another',
-          categoryId: categories[0]!.id,
-          retailPrice: 1,
-          wholesalePrice: 1,
-          identifiers: [
-            { type: 'PART_NUMBER', value: 'X-1' },
-            { type: 'PART_NUMBER', value: 'X-1' },
-          ],
-        });
-        assert.equal(res.status, 409);
-        assert.equal((res.body.error as Rec).code, 'DUPLICATE_IDENTIFIER');
-      } finally {
-        await close();
-      }
-    });
-
-    test('duplicate compatibility within one request is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'POST', '/api/products', {
-          sku: 'NEW-SKU-4',
-          name: 'Another',
-          categoryId: categories[0]!.id,
-          retailPrice: 1,
-          wholesalePrice: 1,
-          compatibility: [{ variantId: variants[0]!.id }, { variantId: variants[0]!.id }],
-        });
-        assert.equal(res.status, 409);
-        assert.equal((res.body.error as Rec).code, 'DUPLICATE_COMPATIBILITY');
-      } finally {
-        await close();
-      }
-    });
-
-    test('product detail includes compatibility (reverse lookup: product -> motorcycles)', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = assistantJar();
-        const res = await request(port, jar, 'GET', `/api/products/${products[0]!.id}`);
-        assert.equal(res.status, 200);
-        const compat = (res.body.product as Rec).compatibilities as Rec[];
-        assert.equal(compat.length, 2);
-        const variant = compat[0]!.variant as Rec;
-        assert.equal((variant.model as Rec).name, 'Boxer');
-        assert.equal(((variant.model as Rec).make as Rec).name, 'Bajaj');
-      } finally {
-        await close();
-      }
-    });
-
-    test('product update replaces identifiers and emits granular audits', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'PATCH', `/api/products/${products[0]!.id}`, {
-          identifiers: [
-            { type: 'PART_NUMBER', value: 'BP-BOX-150' },
-            { type: 'SUPPLIER_NUMBER', value: 'SUP-7788' },
-          ],
-        });
-        assert.equal(res.status, 200);
-        const identifiers2 = (res.body.product as Rec).identifiers as Rec[];
-        assert.equal(identifiers2.length, 2);
-        assert.ok(auditRecords.some((a) => a.action === 'IDENTIFIER_ADDED' && a.entityId === products[0]!.id));
-        assert.ok(auditRecords.some((a) => a.action === 'IDENTIFIER_REMOVED' && a.entityId === products[0]!.id));
       } finally {
         await close();
       }
@@ -1174,7 +988,7 @@ describe('catalog API', () => {
       }
     });
 
-    test('negative price is rejected by validation', async () => {
+    test('negative prices are rejected by validation', async () => {
       const { port, close } = await startServer();
       try {
         const jar = adminJar();
@@ -1182,7 +996,8 @@ describe('catalog API', () => {
           sku: 'NEG-1',
           name: 'Bad',
           categoryId: categories[0]!.id,
-          retailPrice: -5,
+          costPrice: -5,
+          retailPrice: -3,
           wholesalePrice: 1,
         });
         assert.equal(res.status, 400);
@@ -1208,16 +1023,12 @@ describe('catalog API', () => {
       }
     });
 
-    test('product search matches name, identifier, brand and category', async () => {
+    test('product search matches name, brand and category', async () => {
       const { port, close } = await startServer();
       try {
         const jar = assistantJar();
         const byName = await request(port, jar, 'GET', '/api/products?q=brake');
         assert.equal((byName.body.items as Rec[]).length, 2, 'matches product name/category');
-
-        const byIdentifier = await request(port, jar, 'GET', '/api/products?q=BJP-12345');
-        assert.equal((byIdentifier.body.items as Rec[]).length, 1, 'matches OEM identifier');
-        assert.equal(((byIdentifier.body.items as Rec[])[0] as Rec).sku, 'BP-BOX-150');
 
         const byBrand = await request(port, jar, 'GET', '/api/products?q=brembo');
         assert.equal((byBrand.body.items as Rec[]).length, 1, 'matches brand name');
@@ -1246,23 +1057,6 @@ describe('catalog API', () => {
       }
     });
 
-    test('compatibility search: products compatible with a variant/model/make', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = assistantJar();
-        const byVariant = await request(port, jar, 'GET', `/api/products?variantId=${variants[3]!.id}`);
-        assert.equal((byVariant.body.items as Rec[]).length, 2);
-
-        const byModel = await request(port, jar, 'GET', `/api/products?modelId=${models[0]!.id}`);
-        assert.equal((byModel.body.items as Rec[]).length, 1);
-
-        const byMake = await request(port, jar, 'GET', `/api/products?makeId=${makes[1]!.id}`);
-        assert.equal((byMake.body.items as Rec[]).length, 2);
-      } finally {
-        await close();
-      }
-    });
-
     test('product list paginates and sorts', async () => {
       const { port, close } = await startServer();
       try {
@@ -1278,50 +1072,57 @@ describe('catalog API', () => {
         await close();
       }
     });
-  });
 
-  describe('compatibility management', () => {
-    test('compatibility can be added and removed standalone', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const added = await mutate(port, jar, 'POST', '/api/compatibility', {
-          productId: products[1]!.id,
-          variantId: variants[0]!.id,
-        });
-        assert.equal(added.status, 201);
-        assert.ok(auditRecords.some((a) => a.action === 'COMPATIBILITY_ADDED'));
-
-        const removed = await mutate(port, jar, 'DELETE', `/api/compatibility/${(added.body.compatibility as Rec).id}`);
-        assert.equal(removed.status, 204);
-        assert.ok(auditRecords.some((a) => a.action === 'COMPATIBILITY_REMOVED'));
-      } finally {
-        await close();
-      }
-    });
-
-    test('duplicate compatibility is rejected', async () => {
-      const { port, close } = await startServer();
-      try {
-        const jar = adminJar();
-        const res = await mutate(port, jar, 'POST', '/api/compatibility', {
-          productId: products[0]!.id,
-          variantId: variants[1]!.id,
-        });
-        assert.equal(res.status, 409);
-        assert.equal((res.body.error as Rec).code, 'DUPLICATE_COMPATIBILITY');
-      } finally {
-        await close();
-      }
-    });
-
-    test('reverse lookup lists compatibility for a product', async () => {
+    test('product list can sort by cost price', async () => {
       const { port, close } = await startServer();
       try {
         const jar = assistantJar();
-        const res = await request(port, jar, 'GET', `/api/compatibility/products/${products[0]!.id}`);
+        const res = await request(port, jar, 'GET', '/api/products?sortBy=costPrice&sortOrder=desc');
+        const items = res.body.items as Rec[];
+        assert.equal(items.length, 3);
+        assert.equal((items[0] as Rec).sku, 'CHAIN-150', 'highest cost first');
+        assert.equal((items[1] as Rec).sku, 'BP-BOX-150');
+      } finally {
+        await close();
+      }
+    });
+  });
+
+  describe('product deletion', () => {
+    test('ADMIN can delete a product with no history and it is audited', async () => {
+      const { port, close } = await startServer();
+      try {
+        const jar = adminJar();
+        const victimId = products[2]!.id;
+        const res = await mutate(port, jar, 'DELETE', `/api/products/${victimId}`);
         assert.equal(res.status, 200);
-        assert.equal((res.body.items as Rec[]).length, 2);
+        assert.ok(auditRecords.some((a) => a.action === 'PRODUCT_DELETED' && a.entityId === victimId));
+        const after = await request(port, jar, 'GET', '/api/products');
+        assert.equal((after.body.items as Rec[]).some((p) => p.id === victimId), false);
+      } finally {
+        await close();
+      }
+    });
+
+    test('deleting a product with sales history is rejected', async () => {
+      const { port, close } = await startServer();
+      try {
+        const jar = adminJar();
+        saleItemCount = 1;
+        const res = await mutate(port, jar, 'DELETE', `/api/products/${products[0]!.id}`);
+        assert.equal(res.status, 409);
+        assert.equal((res.body.error as Rec).code, 'PRODUCT_IN_USE');
+      } finally {
+        await close();
+      }
+    });
+
+    test('assistant cannot delete products', async () => {
+      const { port, close } = await startServer();
+      try {
+        const jar = assistantJar();
+        const res = await mutate(port, jar, 'DELETE', `/api/products/${products[0]!.id}`);
+        assert.equal(res.status, 403);
       } finally {
         await close();
       }
@@ -1333,7 +1134,7 @@ describe('catalog API', () => {
       const { port, close } = await startServer();
       try {
         const jar = assistantJar();
-        for (const path of ['/api/products', '/api/brands', '/api/motorcycles/makes', '/api/motorcycles/models', '/api/motorcycles/variants']) {
+        for (const path of ['/api/products', '/api/brands']) {
           const read = await request(port, jar, 'GET', path);
           assert.equal(read.status, 200, `${path} readable by assistant`);
         }
@@ -1342,17 +1143,12 @@ describe('catalog API', () => {
           sku: 'FORBIDDEN-1',
           name: 'Nope',
           categoryId: categories[0]!.id,
+          costPrice: 1,
           retailPrice: 1,
           wholesalePrice: 1,
         });
         assert.equal(create.status, 403);
         assert.equal((create.body.error as Rec).code, 'FORBIDDEN');
-
-        const compatAdd = await mutate(port, jar, 'POST', '/api/compatibility', {
-          productId: products[0]!.id,
-          variantId: variants[0]!.id,
-        });
-        assert.equal(compatAdd.status, 403);
       } finally {
         await close();
       }

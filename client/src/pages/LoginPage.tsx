@@ -100,7 +100,7 @@ export function LoginPage(): ReactElement {
   const [error, setError] = useState<string | null>(null);
 
   if (status === 'authenticated') {
-    return <Navigate to={from} replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {

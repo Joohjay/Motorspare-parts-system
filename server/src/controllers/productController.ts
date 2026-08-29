@@ -49,3 +49,9 @@ export const updateProductStatus = asyncHandler(async (req: Request, res: Respon
   });
   res.json({ product });
 });
+
+export const deleteProduct = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = idParamSchema.parse(req.params);
+  await productService.deleteProduct(id, { request: req, actor: requireActor(req) });
+  res.json({ message: 'Product deleted' });
+});
